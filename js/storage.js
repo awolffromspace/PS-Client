@@ -2,12 +2,12 @@ Config.origindomain = 'play.pokemonshowdown.com';
 // `defaultserver` specifies the server to use when the domain name in the
 // address bar is `Config.origindomain`.
 Config.defaultserver = {
-	id: 'showdown',
-	host: 'sim2.psim.us',
-	port: 443,
-	httpport: 8000,
-	altport: 80,
-	registered: true
+	id: 'localhost',
+	host: 'localhost',
+	port: 8000,
+	// httpport: 8000,
+	// altport: 80,
+	registered: false
 };
 
 function Storage() {}
@@ -215,7 +215,7 @@ if (!Storage.bg.id) {
 // localStorage is banned, and since prefs are cached in other
 // places in certain cases.
 
-Storage.origin = 'https://play.pokemonshowdown.com';
+Storage.origin = 'http://localhost';
 
 Storage.prefs = function (prop, value, save) {
 	if (value === undefined) {
