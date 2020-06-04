@@ -1,6 +1,6 @@
 var Config = Config || {};
 
-/* version */ Config.version = "0.11.0";
+/* version */ Config.version = "0.11.2 (a1610dd7/62694f04)";
 
 Config.bannedHosts = ['cool.jit.su', 'pokeball-nixonserver.rhcloud.com'];
 
@@ -36,6 +36,7 @@ Config.whitelist = [
 	'animenewsnetwork\\.cc',
 	'zombo\\.com',
 	'html5zombo\\.com',
+	'whatismyipaddress\\.com',
 
 	// pokemon sites
 	'pokemonshowdown\\.com',
@@ -60,6 +61,7 @@ Config.whitelist = [
 	'poketrade\\.us',
 	'neverused\\.net',
 	'pokestrat\\.com',
+	'pokestrat\\.io',
 	'spo\\.ink',
 	'jooas\\.com',
 	'pokemongodb\\.net',
@@ -68,6 +70,8 @@ Config.whitelist = [
 	'gamepress\\.gg',
 	'trainertower\\.com',
 	'pokepast\\.es',
+	'pokepedia\\.fr',
+	'randbatscalc\\.github\\.io',
 
 	// personal sites
 	'breakdown\\.forumotion\\.com',
@@ -78,6 +82,7 @@ Config.whitelist = [
 	'cathyjf\\.com',
 	'xiaotai\\.org',
 	'xfix\\.pw',
+	'pkmn\\.cc',
 	'bumba\\.me',
 	'strategydatabase\\.jimdo\\.com',
 	'hidden50\\.github\\.io',
@@ -97,9 +102,11 @@ Config.whitelist = [
 	// text
 	'pastebin\\.com',
 	'hastebin\\.com',
+	'pastie\\.io',
 	'trello\\.com',
 	'challonge\\.com',
 	'piratepad\\.net',
+	'pastebin\\.run',
 
 	// music
 	'plug\\.dj',
@@ -117,9 +124,14 @@ Config.whitelist = [
 	'4cdn\\.org'
 ];
 
-Config.roomsFirstOpenScript = function () {
+Config.roomsFirstOpenScript = function (mainMenuOnly) {
 	/* eslint-disable */
-	if ($(window).width() >= 800 && location.protocol !== 'https:') {
+	if (mainMenuOnly) {
+		$('.leftmenu .activitymenu').first().after('<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-6535472412829264" data-ad-slot="7790916938" data-ad-format="auto"></ins>');
+		try {
+			(adsbygoogle = window.adsbygoogle || []).push({});
+		} catch (e) {}
+	} else if ($(window).width() >= 800 && location.protocol !== 'https:') {
 		$('.roomlisttop').first().after('<ins class="adsbygoogle" style="display:inline-block;width:336px;height:280px" data-ad-client="ca-pub-6535472412829264" data-ad-slot="9267650135"></ins>');
 		$('.roomlist').first().after('<ins class="adsbygoogle" style="display:inline-block;width:336px;height:280px" data-ad-client="ca-pub-6535472412829264" data-ad-slot="3029313334"></ins>');
 		try {
@@ -166,12 +178,10 @@ Config.customcolors = {
 	'diatom': 'dledledlewhooop',
 	'texascloverleaf': 'aggronsmash',
 	'treecko': 'treecko56',
-	'treecko37': 'treecko56',
 	'violatic': 'violatic92',
 	'exeggutor': 'ironmanatee',
 	'ironmanatee': 'exeggutor',
 	'skylight': 'aerithass',
-	'goddessbriyella': 'jolteonxvii', // third color change
 	'nekonay': 'catbot20',
 	'coronis': 'kowonis',
 	'vaxter': 'anvaxter',
@@ -219,9 +229,8 @@ Config.customcolors = {
 	'maomiraen': 'aaaaaa',
 	'trickster': 'sunako',
 	'articuno': 'bluekitteh177',
-	'scene': 'aspire',
 	'barton': 'hollywood15',
-	'zodiax': 'coldeann',
+	'zodiax': '5olanto4',
 	'ninetynine': 'blackkkk',
 	'kasumi': 'scooter4000',
 	'xylen': 'bloodyrevengebr',
@@ -231,7 +240,7 @@ Config.customcolors = {
 	'quarkz': 'quarkz345',
 	'fleurdyleurse': 'calvaryfishes',
 	'trinitrotoluene': '4qpr7pc5mb',
-	'rekeri': 'qgadlu6g',
+	'yuno': 'qgadlu6g',
 	'austin': 'jkjkjkjkjkgdl',
 	'jinofthegale': 'cainvelasquez',
 	'waterbomb': 'naninan',
@@ -249,7 +258,7 @@ Config.customcolors = {
 	'grim': 'grimoiregod',
 	'strength': '0v0tqpnu',
 	'honchkrow': 'nsyncluvr67',
-	'quote': 'quotecs',
+	'quote': '64z7i',
 	'snow': 'q21yzqgh',
 	'omegaxis': 'omegaxis14',
 	'paradise': 'rnxvzwpwtz',
@@ -270,11 +279,11 @@ Config.customcolors = {
 	'nerd': 'eee4444444',
 	'blaziken': 'knmfksdnf',
 	'andy': 'agkoemv',
-	'kris': 'flogged',
+	'kris': 'qweqwwweedzvvpioop', // second color change
 	'nv': 'larvitar',
-	'iyarito': 'gengarito',
-	'speks': 'goojna',
-	'cheese': 'soccerzxii',
+	'iyarito': '8f40n',
+	'paris': 'goojna',
+	'moo': 'soccerzxii',
 	'lyren': 'solarisfaux',
 	'tiksi': 'tikse',
 	'ev': 'eeveegeneral',
@@ -282,5 +291,39 @@ Config.customcolors = {
 	'halite': 'rosasite',
 	'false': 'o5t9w5jl',
 	'wally': 'wallythebully',
+	'ant': 'nui',
+	'nui': 'ant',
+	'anubis': 'l99jh',
+	'ceteris': 'eprtiuly',
+	'om': 'omroom',
+	'roman': 'wt2sd0qh',
+	'maroon': 'rucbwbeg',
+	'lyd': 'ahdjfidnf',
+	'perry': 'mrperry',
+	'yogibears': 'bwahahahahahahahaha',
+	'tjay': 'teej19',
+	'explodingdaisies': '85kgt',
+	'flare': 'ploiyhgr',
+	'tenshi': 'tenshinagae',
+	'pre': '0km',
+	'ransei': '54j7o',
+	'snaquaza': 'prrrrrrrrr',
+	'alpha': 'alphawittem',
+	'asheviere': '54hw4',
+	'taranteeeno': 'moondazingo',
+	'rage': 'hipfiregod',
+	'andrew': 'stevensnype',
+	'robyn': 'jediruwu',
+	'birdy': 'cmstrall',
+	'pirateprincess': '45mbh',
+	'tempering': 'tempho',
+	'chazm': 'chazmicsupanova',
+	'arsenal': '558ru',
+	'celestial': 'cvpux4zn',
+	'luigi': 'luifi',
+	'mitsuki': 'latiosred',
+	'faku': 'ifaku',
+	'pablo': 'arrested',
+	'facu': 'facundoooooooo',
 	'cathy': '' //{color: '#ff5cb6'}
 };
