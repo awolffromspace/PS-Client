@@ -1,6 +1,6 @@
 (function ($) {
 
-	var RoomsRoom = this.RoomsRoom = Room.extend({
+	this.RoomsRoom = Room.extend({
 		minWidth: 320,
 		maxWidth: 1024,
 		type: 'rooms',
@@ -42,7 +42,6 @@
 			});
 		},
 		update: function (rooms) {
-			var firstOpen = !app.roomsData;
 			if (rooms) {
 				this.lastUpdate = new Date().getTime();
 				app.roomsData = rooms;
@@ -59,13 +58,13 @@
 			}
 		},
 		renderRoomBtn: function (roomData) {
-			var id = toId(roomData.title);
-			var buf = '<div><a href="' + app.root + id + '" class="ilink"><small style="float:right">(' + Number(roomData.userCount) + ' users)</small><strong><i class="fa fa-comment-o"></i> ' + Tools.escapeHTML(roomData.title) + '<br /></strong><small>' + Tools.escapeHTML(roomData.desc || '');
+			var id = toID(roomData.title);
+			var buf = '<div><a href="' + app.root + id + '" class="ilink"><small style="float:right">(' + Number(roomData.userCount) + ' users)</small><strong><i class="fa fa-comment-o"></i> ' + BattleLog.escapeHTML(roomData.title) + '<br /></strong><small>' + BattleLog.escapeHTML(roomData.desc || '');
 			if (roomData.subRooms && roomData.subRooms.length) {
 				buf += '<br/><i class="fa fa-level-up fa-rotate-90"></i> Subrooms: <strong>';
 				for (var i = 0; i < roomData.subRooms.length; i++) {
 					if (i) buf += ', ';
-					buf += '<i class="fa fa-comment-o"></i> ' + Tools.escapeHTML(roomData.subRooms[i]);
+					buf += '<i class="fa fa-comment-o"></i> ' + BattleLog.escapeHTML(roomData.subRooms[i]);
 				}
 				buf += '</strong>';
 			}
@@ -81,12 +80,12 @@
 			if (rooms.userCount) {
 				var userCount = Number(rooms.userCount);
 				var battleCount = Number(rooms.battleCount);
-				var leftSide = '<span style="' + Tools.getPokemonIcon('meloetta', true) + ';" class="picon icon-left" title="Meloetta is PS\'s mascot! The Aria forme is about using its voice, and represents our chatrooms."></span> <button class="button" name="finduser" title="Find an online user"><strong>' + userCount + '</strong> ' + (userCount == 1 ? 'user' : 'users') + ' online</button>';
-				var rightSide = '<button class="button" name="roomlist" title="Watch an active battle"><strong>' + battleCount + '</strong> active ' + (battleCount == 1 ? 'battle' : 'battles') + '</button> <span style="' + Tools.getPokemonIcon('meloetta-pirouette') + '" class="picon icon-right" title="Meloetta is PS\'s mascot! The Pirouette forme is Fighting-type, and represents our battles."></span>';
-				this.$('.roomlisttop').html('<table class="roomcounters" border="0" cellspacing="0" cellpadding="0" width="100%"><tr><td>' + leftSide + '</td><td>' + rightSide + '</td></tr></table>');
+				var leftSide = '<button class="button" name="finduser" title="Find an online user"><span class="pixelated usercount" title="Meloetta is PS\'s mascot! The Aria forme is about using its voice, and represents our chatrooms." ></span><strong>' + userCount + '</strong> ' + (userCount == 1 ? 'user' : 'users') + ' online</button> ';
+				var rightSide = '<button class="button" name="roomlist" title="Watch an active battle"><span class="pixelated battlecount" title="Meloetta is PS\'s mascot! The Pirouette forme is Fighting-type, and represents our battles." ></span><strong>' + battleCount + '</strong> active ' + (battleCount == 1 ? 'battle' : 'battles') + '</button>';
+				this.$('.roomlisttop').html('<div class="roomcounters">' + leftSide + '</td><td>' + rightSide + '</div>');
 			}
 			this.$('.roomlist').first().html('<h2 class="rooms-officialchatrooms">Official chat rooms</h2>' + _.map(rooms.official, this.renderRoomBtn).join("") +
-				(rooms.pspl && rooms.pspl.length ? '<a href="http://www.smogon.com/forums/threads/pokemon-showdown-premier-league-v-read-the-full-post.3605826/" target="_blank"><h2 class="rooms-psplchatrooms">PSPL Winner</h2></a>' + _.map(rooms.pspl, this.renderRoomBtn).join("") : ''));
+				(rooms.pspl && rooms.pspl.length ? '<a href="https://www.smogon.com/forums/threads/3649563/" target="_blank"><h2 class="rooms-psplchatrooms">PSPL Winner</h2></a>' + _.map(rooms.pspl, this.renderRoomBtn).join("") : ''));
 			this.$('.roomlist').last().html('<h2 class="rooms-chatrooms">Chat rooms</h2>' + _.map(rooms.chat.sort(this.compareRooms), this.renderRoomBtn).join(""));
 		},
 		roomlist: function () {
@@ -103,7 +102,7 @@
 			}
 			app.addPopupPrompt("Username", "Open", function (target) {
 				if (!target) return;
-				if (toId(target) === 'zarel') {
+				if (toID(target) === 'zarel') {
 					app.addPopup(Popup, {htmlMessage: "Zarel is very busy; please don't contact him this way. If you're looking for help, try <a href=\"/help\">joining the Help room</a>?"});
 					return;
 				}
@@ -112,20 +111,23 @@
 		}
 	});
 
-	var BattlesRoom = this.BattlesRoom = Room.extend({
+	this.BattlesRoom = Room.extend({
 		minWidth: 320,
 		maxWidth: 1024,
 		type: 'battles',
 		title: 'Battles',
 		isSideRoom: true,
 		events: {
-			'change input[name=elofilter]': 'refresh'
+			'change select[name=elofilter]': 'refresh',
+			'submit .search': 'submitSearch'
 		},
 		initialize: function () {
 			this.$el.addClass('ps-room-light').addClass('scrollable');
-			var buf = '<div class="pad"><button class="button" style="float:right;font-size:10pt;margin-top:3px" name="close"><i class="fa fa-times"></i> Close</button><div class="roomlist"><p><button class="button" name="refresh"><i class="fa fa-refresh"></i> Refresh</button> <span style="' + Tools.getPokemonIcon('meloetta-pirouette') + ';display:inline-block;vertical-align:middle" class="picon" title="Meloetta is PS\'s mascot! The Pirouette forme is Fighting-type, and represents our battles."></span></p>';
+			var buf = '<div class="pad"><button class="button" style="float:right;font-size:10pt;margin-top:3px" name="close"><i class="fa fa-times"></i> Close</button><div class="roomlist"><p><button class="button" name="refresh"><i class="fa fa-refresh"></i> Refresh</button> <span style="' + Dex.getPokemonIcon('meloetta-pirouette') + ';display:inline-block;vertical-align:middle" class="picon" title="Meloetta is PS\'s mascot! The Pirouette forme is Fighting-type, and represents our battles."></span></p>';
 
-			buf += '<p><label class="label">Format:</label><button class="select formatselect" name="selectFormat">(All formats)</button></p> <label><input type="checkbox" name="elofilter" value="1300" /> Elo 1300+</label>';
+			buf += '<p><label class="label">Format:</label><button class="select formatselect" name="selectFormat">(All formats)</button></p>';
+			buf += '<label>Minimum Elo: <select name="elofilter"><option value="none">None</option><option value="1100">1100</option><option value="1300">1300</option><option value="1500">1500</option><option value="1700">1700</option><option value="1900">1900</option></select></label>';
+			buf += '<p><form class="search"><input type="text" name="prefixsearch" class="textbox" value="' + BattleLog.escapeHTML(this.usernamePrefix) + '" placeholder="username prefix"/><button type="submit" class="button">Search</button></form></p>';
 			buf += '<div class="list"><p>Loading...</p></div>';
 			buf += '</div></div>';
 
@@ -154,6 +156,7 @@
 			this.refresh();
 		},
 		focus: function (e) {
+			if (e && $(e.target).is('input')) return;
 			if (e && $(e.target).closest('select, a').length) return;
 			if (new Date().getTime() - this.lastUpdate > 60 * 1000) {
 				this.refresh();
@@ -168,16 +171,22 @@
 		renderRoomBtn: function (id, roomData, matches) {
 			var format = (matches[1] || '');
 			var formatBuf = '';
-			if (roomData.minElo) formatBuf += '<small style="float:right">(' + (typeof roomData.minElo === 'number' ? 'rated: ' : '') + Tools.escapeHTML(roomData.minElo) + ')</small>';
-			formatBuf += (format ? '<small>[' + Tools.escapeFormat(format) + ']</small><br />' : '');
-			var roomDesc = formatBuf + '<em class="p1">' + Tools.escapeHTML(roomData.p1) + '</em> <small class="vs">vs.</small> <em class="p2">' + Tools.escapeHTML(roomData.p2) + '</em>';
+			if (roomData.minElo) {
+				formatBuf += '<small style="float:right">(' + (typeof roomData.minElo === 'number' ? 'rated: ' : '') + BattleLog.escapeHTML('' + roomData.minElo) + ')</small>';
+			}
+			formatBuf += (format ? '<small>[' + BattleLog.escapeFormat(format) + ']</small><br />' : '');
+			var roomDesc = formatBuf + '<em class="p1">' + BattleLog.escapeHTML(roomData.p1) + '</em> <small class="vs">vs.</small> <em class="p2">' + BattleLog.escapeHTML(roomData.p2) + '</em>';
 			if (!roomData.p1) {
 				matches = id.match(/[^0-9]([0-9]*)$/);
 				roomDesc = formatBuf + 'empty room ' + matches[1];
 			} else if (!roomData.p2) {
-				roomDesc = formatBuf + '<em class="p1">' + Tools.escapeHTML(roomData.p1) + '</em>';
+				roomDesc = formatBuf + '<em class="p1">' + BattleLog.escapeHTML(roomData.p1) + '</em>';
 			}
 			return '<div><a href="' + app.root + id + '" class="ilink">' + roomDesc + '</a></div>';
+		},
+		submitSearch: function (e) {
+			e.preventDefault();
+			this.refresh();
 		},
 		update: function (data) {
 			if (!data && !this.data) {
@@ -205,14 +214,14 @@
 				buf.push(this.renderRoomBtn(id, roomData, matches));
 			}
 
-			if (!buf.length) return this.$list.html('<p>No ' + Tools.escapeFormat(this.format) + ' battles are going on right now.</p>');
-			return this.$list.html('<p>' + buf.length + (buf.length === 100 ? '+' : '') + ' ' + Tools.escapeFormat(this.format) + ' ' + (buf.length === 1 ? 'battle' : 'battles') + '</p>' + buf.join(""));
+			if (!buf.length) return this.$list.html('<p>No ' + BattleLog.escapeFormat(this.format) + ' battles are going on right now.</p>');
+			return this.$list.html('<p>' + buf.length + (buf.length === 100 ? '+' : '') + ' ' + BattleLog.escapeFormat(this.format) + ' ' + (buf.length === 1 ? 'battle' : 'battles') + '</p>' + buf.join(""));
 		},
 		refresh: function () {
-			var elofilter = '';
-			var $checkbox = this.$('input[name=elofilter]');
-			if ($checkbox.is(':checked')) elofilter = ', ' + $checkbox.val();
-			app.send('/cmd roomlist ' + this.format + elofilter);
+			var usernamePrefix = this.$('input[name=prefixsearch]').val();
+			var elofilter = this.$('select[name=elofilter]').val();
+			var searchParams = [this.format, elofilter, toID(usernamePrefix)];
+			app.send('/cmd roomlist ' + searchParams.join(','));
 
 			this.lastUpdate = new Date().getTime();
 			// Prevent further refreshes until we get a response.

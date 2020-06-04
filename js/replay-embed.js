@@ -1,16 +1,37 @@
-document.write('<link rel="stylesheet" href="https://play.pokemonshowdown.com/style/font-awesome.css?" />');
-document.write('<link rel="stylesheet" href="https://play.pokemonshowdown.com/style/battle.css?a7" />');
-document.write('<link rel="stylesheet" href="https://play.pokemonshowdown.com/style/replay.css?a7" />');
-document.write('<script src="https://play.pokemonshowdown.com/js/lib/jquery-1.11.0.min.js"></script>');
-document.write('<script src="https://play.pokemonshowdown.com/js/lib/lodash.compat.js"></script>');
-document.write('<script src="https://play.pokemonshowdown.com/js/lib/html-sanitizer-minified.js"></script>');
-document.write('<script src="https://play.pokemonshowdown.com/js/lib/soundmanager2-nodebug-jsmin.js"></script>');
-document.write('<script src="https://play.pokemonshowdown.com/js/config.js?a7"></script>');
-document.write('<script src="https://play.pokemonshowdown.com/js/battledata.js?a7"></script>');
-document.write('<script src="https://play.pokemonshowdown.com/data/pokedex-mini.js?a7"></script>');
-document.write('<script src="https://play.pokemonshowdown.com/data/pokedex-mini-bw.js?a7"></script>');
-document.write('<script src="https://play.pokemonshowdown.com/data/graphics.js?a7"></script>');
-document.write('<script src="https://play.pokemonshowdown.com/js/battle.js?a7"></script>');
+window.exports = window;
+
+function linkStyle(url) {
+	var linkEl = document.createElement('link');
+	linkEl.rel = 'stylesheet';
+	linkEl.href = url;
+	document.head.appendChild(linkEl);
+}
+function requireScript(url) {
+	var scriptEl = document.createElement('script');
+	scriptEl.src = url;
+	document.head.appendChild(scriptEl);
+}
+
+linkStyle('https://play.pokemonshowdown.com/style/font-awesome.css?');
+linkStyle('https://play.pokemonshowdown.com/style/battle.css?a7');
+linkStyle('https://play.pokemonshowdown.com/style/replay.css?a7');
+
+requireScript('https://play.pokemonshowdown.com/js/lib/jquery-1.11.0.min.js');
+requireScript('https://play.pokemonshowdown.com/js/lib/lodash.compat.js');
+requireScript('https://play.pokemonshowdown.com/js/lib/html-sanitizer-minified.js');
+requireScript('https://play.pokemonshowdown.com/js/lib/soundmanager2-nodebug-jsmin.js');
+requireScript('https://play.pokemonshowdown.com/js/config.js?a7');
+requireScript('https://play.pokemonshowdown.com/js/battledata.js?a7');
+requireScript('https://play.pokemonshowdown.com/data/pokedex-mini.js?a7');
+requireScript('https://play.pokemonshowdown.com/data/pokedex-mini-bw.js?a7');
+requireScript('https://play.pokemonshowdown.com/data/graphics.js?a7');
+requireScript('https://play.pokemonshowdown.com/data/pokedex.js?a7');
+requireScript('https://play.pokemonshowdown.com/data/moves.js?a7');
+requireScript('https://play.pokemonshowdown.com/data/abilities.js?a7');
+requireScript('https://play.pokemonshowdown.com/data/items.js?a7');
+requireScript('https://play.pokemonshowdown.com/data/teambuilder-tables.js?a7');
+requireScript('https://play.pokemonshowdown.com/js/battle-tooltips.js?a7');
+requireScript('https://play.pokemonshowdown.com/js/battle.js?a7');
 
 var Replays = {
 	init: function (log) {
@@ -29,16 +50,20 @@ var Replays = {
 		//this.battle.preloadCallback = updateProgress;
 		this.battle.errorCallback = this.errorCallback.bind(this);
 		this.battle.resumeButton = this.resume.bind(this);
+
+		this.setlog(log);
+	},
+	setlog: function (log) {
 		this.battle.setQueue(log.split('\n'));
 
 		this.battle.reset();
-		this.battle.fastForwardTo(0);
 		this.$('.battle').append('<div class="playbutton"><button data-action="start"><i class="fa fa-play"></i> Play</button><br /><br /><button data-action="startMuted" class="startsoundchooser" style="font-size:10pt;display:none">Play (music off)</button></div>');
 
 		this.$('.replay-controls-2').html('<div class="chooser leftchooser speedchooser"> <em>Speed:</em> <div><button class="sel" value="fast">Fast</button><button value="normal">Normal</button><button value="slow">Slow</button><button value="reallyslow">Really Slow</button></div> </div> <div class="chooser colorchooser"> <em>Color&nbsp;scheme:</em> <div><button class="sel" value="light">Light</button><button value="dark">Dark</button></div> </div> <div class="chooser soundchooser" style="display:none"> <em>Music:</em> <div><button class="sel" value="on">On</button><button value="off">Off</button></div> </div>');
 
 		// this works around a WebKit/Blink bug relating to float layout
 		var rc2 = this.$('.replay-controls-2')[0];
+		// eslint-disable-next-line no-self-assign
 		if (rc2) rc2.innerHTML = rc2.innerHTML;
 
 		if (window.soundManager && soundManager.ready) this.soundReady();
@@ -112,7 +137,7 @@ var Replays = {
 		var replayid = this.$('input[name=replayid]').val();
 		var m = /^([a-z0-9]+)-[a-z0-9]+-[0-9]+$/.exec(replayid);
 		if (m) {
-			this.battle.log('<hr /><div class="chat">This replay was uploaded from a third-party server (<code>' + Tools.escapeHTML(m[1]) + '</code>). It contains errors and cannot be viewed.</div><div class="chat">Replays uploaded from third-party servers can contain errors if the server is running custom code, or the server operator has otherwise incorrectly configured their server.</div>', true);
+			this.battle.log('<hr /><div class="chat">This replay was uploaded from a third-party server (<code>' + BattleLog.escapeHTML(m[1]) + '</code>). It contains errors and cannot be viewed.</div><div class="chat">Replays uploaded from third-party servers can contain errors if the server is running custom code, or the server operator has otherwise incorrectly configured their server.</div>', true);
 			this.battle.pause();
 		}
 	},

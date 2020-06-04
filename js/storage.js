@@ -3,7 +3,7 @@ Config.origindomain = 'play.pokemonshowdown.com';
 // address bar is `Config.origindomain`.
 Config.defaultserver = {
 	id: 'showdown',
-	host: 'sim2.psim.us',
+	host: 'sim3.psim.us',
 	port: 443,
 	httpport: 8000,
 	altport: 80,
@@ -22,6 +22,14 @@ Storage.initialize = function () {
 		this.logChat = this.nwLogChat;
 	}
 	Storage.initPrefs();
+};
+
+Storage.safeJSON = function (callback) {
+	return function (data) {
+		if (data.length < 1) return;
+		if (data[0] == ']') data = data.substr(1);
+		return callback(JSON.parse(data));
+	};
 };
 
 /*********************************************************
@@ -57,7 +65,7 @@ Storage.bg = {
 			if (location.host === 'smogtours.psim.us') {
 				bgid = 'shaymin';
 			} else if (location.host === 'play.pokemonshowdown.com') {
-				bgid = ['horizon', 'ocean', 'waterfall', 'shaymin', 'charizards'][Math.floor(Math.random() * 5)];
+				bgid = ['horizon', 'ocean', 'waterfall', 'shaymin', 'charizards', 'psday'][Math.floor(Math.random() * 6)];
 			} else {
 				$(document.body).css({
 					background: '',
@@ -66,12 +74,12 @@ Storage.bg = {
 				$('#mainmenubuttoncolors').remove();
 				return true;
 			}
-			bgUrl = Tools.resourcePrefix + 'fx/client-bg-' + bgid + '.jpg';
+			bgUrl = Dex.resourcePrefix + 'fx/client-bg-' + bgid + '.jpg';
 		}
 
 		// April Fool's 2016 - Digimon theme
 		// bgid = 'digimon';
-		// bgUrl = Tools.resourcePrefix + 'sprites/afd/digimonbg.jpg';
+		// bgUrl = Dex.resourcePrefix + 'sprites/afd/digimonbg.jpg';
 
 		var background;
 		if (bgUrl.charAt(0) === '#') {
@@ -109,6 +117,10 @@ Storage.bg = {
 			case 'charizards':
 				hues = ["37.159090909090914,74.57627118644066%", "10.874999999999998,70.79646017699115%", "179.51612903225808,52.10084033613446%", "20.833333333333336,36.73469387755102%", "192.3076923076923,80.41237113402063%", "210,29.629629629629633%"];
 				attrib = '<a href="https://seiryuuden.deviantart.com/art/The-Ultimate-Mega-Showdown-Charizards-414587079" target="_blank" class="subtle">"Charizards" <small>background by Jessica Valencia</small></a>';
+				break;
+			case 'psday':
+				hues = ["24.705882352941174,25.37313432835821%", "260.4651162790697,59.44700460829492%", "165.3191489361702,46.07843137254901%", "16.363636363636367,42.63565891472869%", "259.04761904761904,34.05405405405405%", "24.705882352941174,25.37313432835821%"];
+				attrib = 'Pok&eacute;mon Showdown Day background <small>by LifeisDANK</small>';
 				break;
 			case 'digimon':
 				hues = ["170.45454545454544,27.500000000000004%", "84.70588235294119,13.821138211382115%", "112.50000000000001,7.8431372549019605%", "217.82608695652175,54.761904761904766%", "0,1.6949152542372816%", ""];
@@ -176,7 +188,6 @@ Storage.bg = {
 		var s;
 		var l = (max + min) / 2;
 		if (max === min) {
-			h = s = 0;
 			return '0, 0%';
 		} else {
 			var d = max - min;
@@ -237,19 +248,63 @@ Storage.prefs = function (prop, value, save) {
 Storage.prefs.data = {};
 try {
 	if (window.localStorage) {
-		Storage.prefs.data = $.parseJSON(localStorage.getItem('showdown_prefs')) || {};
+		Storage.prefs.data = JSON.parse(localStorage.getItem('showdown_prefs')) || {};
 	}
 } catch (e) {}
 
 Storage.prefs.save = function () {
 	try {
-		localStorage.setItem('showdown_prefs', $.toJSON(this.data));
+		localStorage.setItem('showdown_prefs', JSON.stringify(this.data));
 	} catch (e) {}
 };
 
-Storage.whenPrefsLoaded = Tools.makeLoadTracker();
-Storage.whenTeamsLoaded = Tools.makeLoadTracker();
-Storage.whenAppLoaded = Tools.makeLoadTracker();
+/**
+ * Load trackers are loosely based on Promises, but very simplified.
+ * Trackers are made with: let tracker = Dex.makeLoadTracker();
+ * Pass callbacks like so: tracker(callback)
+ * When tracker.load() is called, all callbacks are run.
+ * If tracker.load() has already been called, tracker(callback) will
+ * call the callback instantly.
+ */
+Storage.makeLoadTracker = function () {
+	/** @type {(callback: (this: C, value: T) => void, context: C) => LoadTracker) & {isLoaded: boolean, value: T | undefined, load: (value: T) => void, unload: () => void, callbacks: [(value: T) => void, C][]}} */
+	var tracker = function (callback, context) {
+		if (tracker.isLoaded) {
+			callback.call(context, tracker.value);
+		} else {
+			tracker.callbacks.push([callback, context]);
+		}
+		return tracker;
+	};
+	tracker.callbacks = [];
+	tracker.value = undefined;
+	tracker.isLoaded = false;
+	tracker.load = function (value) {
+		if (tracker.isLoaded) return;
+		tracker.isLoaded = true;
+		tracker.value = value;
+		for (var i = 0; i < tracker.callbacks.length; i++) {
+			var callback = tracker.callbacks[i];
+			callback[0].call(callback[1], value);
+		}
+	};
+	tracker.update = function (value) {
+		tracker.value = value;
+		for (var i = 0; i < tracker.callbacks.length; i++) {
+			var callback = tracker.callbacks[i];
+			callback[0].call(callback[1], value);
+		}
+	};
+	tracker.unload = function () {
+		if (!tracker.isLoaded) return;
+		tracker.isLoaded = false;
+	};
+	return tracker;
+};
+
+Storage.whenPrefsLoaded = Storage.makeLoadTracker();
+Storage.whenTeamsLoaded = Storage.makeLoadTracker();
+Storage.whenAppLoaded = Storage.makeLoadTracker();
 
 var updatePrefs = function () {
 	var oldShowjoins = Storage.prefs('showjoins');
@@ -321,10 +376,8 @@ Storage.initPrefs = function () {
 			// that feel a need to MitM HTTPS poorly
 			Storage.whenPrefsLoaded.load();
 			if (!Storage.whenTeamsLoaded.isLoaded) {
-				Storage.whenTeamsLoaded.isStalled = true;
-				if (window.app && app.rooms['teambuilder']) {
-					app.rooms['teambuilder'].updateTeamInterface();
-				}
+				Storage.whenTeamsLoaded.error = 'stalled';
+				Storage.whenTeamsLoaded.update();
 			}
 		}, 2000);
 	}
@@ -341,7 +394,7 @@ Storage.onMessage = function ($e) {
 	var data = e.data;
 	switch (data.charAt(0)) {
 	case 'c':
-		Config.server = $.parseJSON(data.substr(1));
+		Config.server = JSON.parse(data.substr(1));
 		if (Config.server.registered && Config.server.id !== 'showdown' && Config.server.id !== 'smogtours') {
 			var $link = $('<link rel="stylesheet" ' +
 				'href="//play.pokemonshowdown.com/customcss.php?server=' +
@@ -350,10 +403,10 @@ Storage.onMessage = function ($e) {
 		}
 		break;
 	case 'p':
-		var newData = $.parseJSON(data.substr(1));
+		var newData = JSON.parse(data.substr(1));
 		if (newData) Storage.prefs.data = newData;
 		Storage.prefs.save = function () {
-			var prefData = $.toJSON(this.data);
+			var prefData = JSON.stringify(this.data);
 			Storage.postCrossOriginMessage('P' + prefData);
 
 			// in Safari, cross-origin local storage is apparently treated as session
@@ -439,13 +492,11 @@ Storage.postCrossOriginMessage = function (data) {
 	try {
 		// I really hope this is a Chrome bug that this can fail
 		return Storage.crossOriginFrame.postMessage(data, Storage.origin);
-	} catch (e) {
+	} catch (err) {
 		Storage.whenPrefsLoaded.load();
 		if (!Storage.whenTeamsLoaded.isLoaded) {
-			Storage.whenTeamsLoaded.isStalled = true;
-			if (window.app && app.rooms['teambuilder']) {
-				app.rooms['teambuilder'].updateTeamInterface();
-			}
+			Storage.whenTeamsLoaded.error = err;
+			Storage.whenTeamsLoaded.update();
 		}
 	}
 	return false;
@@ -456,7 +507,14 @@ Storage.postCrossOriginMessage = function (data) {
 Storage.initTestClient = function () {
 	Config.server = Config.server || Config.defaultserver;
 	Storage.whenTeamsLoaded.load();
+
+	var sid = null;
+	if (typeof POKEMON_SHOWDOWN_TESTCLIENT_KEY === 'string') {
+		sid = POKEMON_SHOWDOWN_TESTCLIENT_KEY.replace(/\%2C/g, ',');
+	}
+
 	Storage.whenAppLoaded(function (app) {
+		var get = $.get;
 		$.get = function (uri, data, callback, type) {
 			if (type === 'html') {
 				uri += '&testclient';
@@ -468,24 +526,37 @@ Storage.initTestClient = function () {
 				}
 			}
 			if (uri[0] === '/') { // relative URI
-				uri = Tools.resourcePrefix + uri.substr(1);
+				uri = Dex.resourcePrefix + uri.substr(1);
 			}
-			app.addPopup(ProxyPopup, {uri: uri, callback: callback});
+
+			if (sid) {
+				data.sid = sid;
+				get(uri, data, callback, type);
+			} else {
+				app.addPopup(ProxyPopup, {uri: uri, callback: callback});
+			}
 		};
+		var post = $.post;
 		$.post = function (uri, data, callback, type) {
 			if (type === 'html') {
 				uri += '&testclient';
 			}
 			if (uri[0] === '/') { //relative URI
-				uri = Tools.resourcePrefix + uri.substr(1);
+				uri = Dex.resourcePrefix + uri.substr(1);
 			}
-			var src = '<!DOCTYPE html><html><body><form action="' + Tools.escapeHTML(uri) + '" method="POST">';
-			src += '<input type="hidden" name="testclient">';
-			for (var i in data) {
-				src += '<input type=hidden name="' + i + '" value="' + Tools.escapeHTML(data[i]) + '">';
+
+			if (sid) {
+				data.sid = sid;
+				post(uri, data, callback, type);
+			} else {
+				var src = '<!DOCTYPE html><html><body><form action="' + BattleLog.escapeHTML(uri) + '" method="POST">';
+				src += '<input type="hidden" name="testclient">';
+				for (var i in data) {
+					src += '<input type=hidden name="' + i + '" value="' + BattleLog.escapeHTML(data[i]) + '">';
+				}
+				src += '<input type=submit value="Please click this button first."></form></body></html>';
+				app.addPopup(ProxyPopup, {uri: "data:text/html;charset=UTF-8," + encodeURIComponent(src), callback: callback});
 			}
-			src += '<input type=submit value="Please click this button first."></form></body></html>';
-			app.addPopup(ProxyPopup, {uri: "data:text/html;charset=UTF-8," + encodeURIComponent(src), callback: callback});
 		};
 		Storage.whenPrefsLoaded.load();
 	});
@@ -522,7 +593,7 @@ Storage.loadPackedTeams = function (buffer) {
 		Storage.whenAppLoaded(function (app) {
 			app.addPopup(Popup, {
 				type: 'modal',
-				htmlMessage: "Your teams are corrupt and could not be loaded. :( We may be able to recover a team from this data:<br /><textarea rows=\"10\" cols=\"60\">" + Tools.escapeHTML(buffer) + "</textarea>"
+				htmlMessage: "Your teams are corrupt and could not be loaded. :( We may be able to recover a team from this data:<br /><textarea rows=\"10\" cols=\"60\">" + BattleLog.escapeHTML(buffer) + "</textarea>"
 			});
 		});
 	}
@@ -588,23 +659,25 @@ Storage.unpackAllTeams = function (buffer) {
 		});
 	}
 
-	return buffer.split('\n').map(function (line) {
-		var pipeIndex = line.indexOf('|');
-		if (pipeIndex < 0) return '';
-		var bracketIndex = line.indexOf(']');
-		if (bracketIndex > pipeIndex) bracketIndex = -1;
-		var slashIndex = line.lastIndexOf('/', pipeIndex);
-		if (slashIndex < 0) slashIndex = bracketIndex; // line.slice(slashIndex + 1, pipeIndex) will be ''
-		var format = bracketIndex > 0 ? line.slice(0, bracketIndex) : 'gen7';
-		if (format && format.slice(0, 3) !== 'gen') format = 'gen6' + format;
-		return {
-			name: line.slice(slashIndex + 1, pipeIndex),
-			format: format,
-			team: line.slice(pipeIndex + 1),
-			folder: line.slice(bracketIndex + 1, slashIndex > 0 ? slashIndex : bracketIndex + 1),
-			iconCache: ''
-		};
-	}).filter(function (v) { return v; });
+	return buffer.split('\n').map(Storage.unpackLine).filter(function (v) { return v; });
+};
+
+Storage.unpackLine = function (line) {
+	var pipeIndex = line.indexOf('|');
+	if (pipeIndex < 0) return null;
+	var bracketIndex = line.indexOf(']');
+	if (bracketIndex > pipeIndex) bracketIndex = -1;
+	var slashIndex = line.lastIndexOf('/', pipeIndex);
+	if (slashIndex < 0) slashIndex = bracketIndex; // line.slice(slashIndex + 1, pipeIndex) will be ''
+	var format = bracketIndex > 0 ? line.slice(0, bracketIndex) : 'gen7';
+	if (format && format.slice(0, 3) !== 'gen') format = 'gen6' + format;
+	return {
+		name: line.slice(slashIndex + 1, pipeIndex),
+		format: format,
+		team: line.slice(pipeIndex + 1),
+		folder: line.slice(bracketIndex + 1, slashIndex > 0 ? slashIndex : bracketIndex + 1),
+		iconCache: ''
+	};
 };
 
 Storage.packAllTeams = function (teams) {
@@ -623,37 +696,22 @@ Storage.packTeam = function (team) {
 		if (buf) buf += ']';
 
 		// name
-		buf += set.name;
+		buf += set.name || set.species;
 
 		// species
-		var id = toId(set.species);
-		buf += '|' + (toId(set.name) === id ? '' : id);
+		var id = toID(set.species);
+		buf += '|' + (toID(set.name || set.species) === id ? '' : id);
 
 		// item
-		buf += '|' + toId(set.item);
+		buf += '|' + toID(set.item);
 
 		// ability
-		var template = Tools.getTemplate(set.species || set.name);
-		var abilities = template.abilities;
-		id = toId(set.ability);
-		if (abilities) {
-			if (id == toId(abilities['0'])) {
-				buf += '|';
-			} else if (id === toId(abilities['1'])) {
-				buf += '|1';
-			} else if (id === toId(abilities['H'])) {
-				buf += '|H';
-			} else {
-				buf += '|' + id;
-			}
-		} else {
-			buf += '|' + id;
-		}
+		buf += '|' + toID(set.ability);
 
 		// moves
 		buf += '|';
 		if (set.moves) for (var j = 0; j < set.moves.length; j++) {
-			var moveid = toId(set.moves[j]);
+			var moveid = toID(set.moves[j]);
 			if (j && !moveid) continue;
 			buf += (j ? ',' : '') + moveid;
 			if (moveid.substr(0, 11) === 'hiddenpower' && moveid.length > 11) hasHP = true;
@@ -676,7 +734,7 @@ Storage.packTeam = function (team) {
 		}
 
 		// gender
-		if (set.gender && set.gender !== template.gender) {
+		if (set.gender) {
 			buf += '|' + set.gender;
 		} else {
 			buf += '|';
@@ -716,7 +774,7 @@ Storage.packTeam = function (team) {
 
 		if (set.pokeball || (set.hpType && !hasHP)) {
 			buf += ',' + (set.hpType || '');
-			buf += ',' + toId(set.pokeball);
+			buf += ',' + toID(set.pokeball);
 		}
 	}
 
@@ -751,8 +809,9 @@ Storage.fastUnpackTeam = function (buf) {
 		// ability
 		j = buf.indexOf('|', i);
 		var ability = buf.substring(i, j);
-		var template = Tools.getTemplate(set.species);
-		set.ability = (template.abilities && ability in {'':1, 0:1, 1:1, H:1} ? template.abilities[ability || '0'] : ability);
+		var species = Dex.getSpecies(set.species);
+		if (species.baseSpecies === 'Zygarde' && ability === 'H') ability = 'Power Construct';
+		set.ability = (species.abilities && ['', '0', '1', 'H', 'S'].includes(ability) ? species.abilities[ability] || '!!!ERROR!!!' : ability);
 		i = j + 1;
 
 		// moves
@@ -853,25 +912,25 @@ Storage.unpackTeam = function (buf) {
 
 		// species
 		j = buf.indexOf('|', i);
-		set.species = Tools.getTemplate(buf.substring(i, j)).species || set.name;
+		set.species = Dex.getSpecies(buf.substring(i, j)).name || set.name;
 		i = j + 1;
 
 		// item
 		j = buf.indexOf('|', i);
-		set.item = Tools.getItem(buf.substring(i, j)).name;
+		set.item = Dex.getItem(buf.substring(i, j)).name;
 		i = j + 1;
 
 		// ability
 		j = buf.indexOf('|', i);
-		var ability = Tools.getAbility(buf.substring(i, j)).name;
-		var template = Tools.getTemplate(set.species);
-		set.ability = (template.abilities && ability in {'':1, 0:1, 1:1, H:1} ? template.abilities[ability || '0'] : ability);
+		var ability = Dex.getAbility(buf.substring(i, j)).name;
+		var species = Dex.getSpecies(set.species);
+		set.ability = (species.abilities && ability in {'':1, 0:1, 1:1, H:1} ? species.abilities[ability || '0'] : ability);
 		i = j + 1;
 
 		// moves
 		j = buf.indexOf('|', i);
 		set.moves = buf.substring(i, j).split(',').map(function (moveid) {
-			return Tools.getMove(moveid).name;
+			return Dex.getMove(moveid).name;
 		});
 		i = j + 1;
 
@@ -952,7 +1011,7 @@ Storage.unpackTeam = function (buf) {
 };
 
 Storage.packedTeamNames = function (buf) {
-	if (!buf) return '';
+	if (!buf) return [];
 
 	var team = [];
 	var i = 0;
@@ -960,11 +1019,13 @@ Storage.packedTeamNames = function (buf) {
 	while (true) {
 		var name = buf.substring(i, buf.indexOf('|', i));
 		i = buf.indexOf('|', i) + 1;
+		if (!i) return [];
 
 		team.push(buf.substring(i, buf.indexOf('|', i)) || name);
 
 		for (var k = 0; k < 9; k++) {
 			i = buf.indexOf('|', i) + 1;
+			if (!i) return [];
 		}
 
 		i = buf.indexOf(']', i) + 1;
@@ -979,7 +1040,7 @@ Storage.packedTeamIcons = function (buf) {
 	if (!buf) return '<em>(empty team)</em>';
 
 	return this.packedTeamNames(buf).map(function (species) {
-		return '<span class="picon" style="' + Tools.getPokemonIcon(species) + ';float:left;overflow:visible"><span style="font-size:0px">' + toId(species) + '</span></span>';
+		return '<span class="picon" style="' + Dex.getPokemonIcon(species) + ';float:left;overflow:visible"><span style="font-size:0px">' + toID(species) + '</span></span>';
 	}).join('');
 };
 
@@ -1022,9 +1083,9 @@ Storage.getPackedTeam = function (team) {
 	return team.team;
 };
 
-Storage.importTeam = function (text, teams) {
-	var text = text.split("\n");
-	var team = [];
+Storage.importTeam = function (buffer, teams) {
+	var text = buffer.split("\n");
+	var team = teams ? null : [];
 	var curSet = null;
 	if (teams === true) {
 		Storage.teams = [];
@@ -1046,7 +1107,7 @@ Storage.importTeam = function (text, teams) {
 				if (format && format.slice(0, 3) !== 'gen') format = 'gen6' + format;
 				line = $.trim(line.substr(bracketIndex + 1));
 			}
-			if (teams.length) {
+			if (teams.length && typeof teams[teams.length - 1].team !== 'string') {
 				teams[teams.length - 1].team = Storage.packTeam(teams[teams.length - 1].team);
 			}
 			var slashIndex = line.lastIndexOf('/');
@@ -1062,13 +1123,17 @@ Storage.importTeam = function (text, teams) {
 				folder: folder,
 				iconCache: ''
 			});
+		} else if (line.includes('|')) {
+			// packed format
+			curSet = null;
+			teams.push(Storage.unpackLine(line));
 		} else if (!curSet) {
 			curSet = {name: '', species: '', gender: ''};
 			team.push(curSet);
 			var atIndex = line.lastIndexOf(' @ ');
 			if (atIndex !== -1) {
 				curSet.item = line.substr(atIndex + 3);
-				if (toId(curSet.item) === 'noitem') curSet.item = '';
+				if (toID(curSet.item) === 'noitem') curSet.item = '';
 				line = line.substr(0, atIndex);
 			}
 			if (line.substr(line.length - 4) === ' (M)') {
@@ -1082,11 +1147,11 @@ Storage.importTeam = function (text, teams) {
 			var parenIndex = line.lastIndexOf(' (');
 			if (line.substr(line.length - 1) === ')' && parenIndex !== -1) {
 				line = line.substr(0, line.length - 1);
-				curSet.species = Tools.getTemplate(line.substr(parenIndex + 2)).species;
+				curSet.species = Dex.getSpecies(line.substr(parenIndex + 2)).name;
 				line = line.substr(0, parenIndex);
 				curSet.name = line;
 			} else {
-				curSet.species = Tools.getTemplate(line).species;
+				curSet.species = Dex.getSpecies(line).name;
 				curSet.name = '';
 			}
 		} else if (line.substr(0, 7) === 'Trait: ') {
@@ -1103,6 +1168,12 @@ Storage.importTeam = function (text, teams) {
 		} else if (line.substr(0, 11) === 'Happiness: ') {
 			line = line.substr(11);
 			curSet.happiness = +line;
+		} else if (line.substr(0, 10) === 'Pokeball: ') {
+			line = line.substr(10);
+			curSet.pokeball = line;
+		} else if (line.substr(0, 14) === 'Hidden Power: ') {
+			line = line.substr(14);
+			curSet.hpType = line;
 		} else if (line.substr(0, 5) === 'EVs: ') {
 			line = line.substr(5);
 			var evLines = line.split('/');
@@ -1150,13 +1221,13 @@ Storage.importTeam = function (text, teams) {
 					}
 				}
 			}
-			if (line === 'Frustration') {
+			if (line === 'Frustration' && curSet.happiness === undefined) {
 				curSet.happiness = 0;
 			}
 			curSet.moves.push(line);
 		}
 	}
-	if (teams && teams.length) {
+	if (teams && teams.length && typeof teams[teams.length - 1].team !== 'string') {
 		teams[teams.length - 1].team = Storage.packTeam(teams[teams.length - 1].team);
 	}
 	return team;
@@ -1215,6 +1286,12 @@ Storage.exportTeam = function (team) {
 		if (typeof curSet.happiness === 'number' && curSet.happiness !== 255 && !isNaN(curSet.happiness)) {
 			text += 'Happiness: ' + curSet.happiness + "  \n";
 		}
+		if (curSet.pokeball) {
+			text += 'Pokeball: ' + curSet.pokeball + "  \n";
+		}
+		if (curSet.hpType) {
+			text += 'Hidden Power: ' + curSet.hpType + "  \n";
+		}
 		var first = true;
 		if (curSet.evs) {
 			for (var j in BattleStatNames) {
@@ -1256,7 +1333,7 @@ Storage.exportTeam = function (team) {
 			}
 			if (defaultIvs && !hpType) {
 				for (var stat in BattleStatNames) {
-					if (curSet.ivs[stat] !== 31 && typeof curSet.ivs[stat] !== undefined) {
+					if (curSet.ivs[stat] !== 31 && curSet.ivs[stat] !== undefined) {
 						defaultIvs = false;
 						break;
 					}
@@ -1278,7 +1355,7 @@ Storage.exportTeam = function (team) {
 		if (!first) {
 			text += "  \n";
 		}
-		if (curSet.moves && curSet.moves) for (var j = 0; j < curSet.moves.length; j++) {
+		if (curSet.moves) for (var j = 0; j < curSet.moves.length; j++) {
 			var move = curSet.moves[j];
 			if (move.substr(0, 13) === 'Hidden Power ') {
 				move = move.substr(0, 13) + '[' + move.substr(13) + ']';
@@ -1338,7 +1415,7 @@ Storage.initDirectory2 = function () {
 					self.deleteTeam = self.nwDeleteTeam;
 
 					// logging
-					if (Tools.prefs('logchat')) self.startLoggingChat();
+					if (Dex.prefs('logchat')) self.startLoggingChat();
 				}
 			});
 		});
@@ -1379,7 +1456,11 @@ Storage.nwLoadTeams = function () {
 	var localApp = window.app;
 	var dirOffset = this.dir.length + 6;
 	Storage.nwFindTextFilesRecursive(this.dir + 'Teams', function (err, files) {
-		if (err) return;
+		if (err) {
+			Storage.whenTeamsLoaded.error = err;
+			Storage.whenTeamsLoaded.update();
+			return;
+		}
 		self.teams = [];
 		self.nwTeamsLeft = files.length;
 		if (!self.nwTeamsLeft) {
@@ -1478,7 +1559,7 @@ Storage.teamCompare = function (a, b) {
 	return 0;
 };
 
-Storage.fsReady = Tools.makeLoadTracker();
+Storage.fsReady = Storage.makeLoadTracker();
 Storage.fsReady.load();
 
 Storage.nwDeleteAllTeams = function (callback) {
@@ -1502,19 +1583,16 @@ Storage.nwDeleteAllTeams = function (callback) {
 };
 
 Storage.nwDeleteTeamFile = function (filename, callback) {
-	var self = this;
-	var line = filename;
-	if (line.substr(line.length - 4).toLowerCase() === '.txt') {
-		line = line.substr(0, line.length - 4);
-	} else {
+	if (filename.slice(-4).toLowerCase() !== '.txt') {
 		// not a team file
-		self.nwTeamsLeft--;
-		if (!self.nwTeamsLeft) {
+		this.nwTeamsLeft--;
+		if (!this.nwTeamsLeft) {
 			if (callback) callback();
 			Storage.fsReady.load();
 		}
 		return;
 	}
+	var self = this;
 	fs.unlink(this.dir + 'Teams/' + filename, function (err) {
 		var directory = filename.split('/').slice(0, -1).join('/');
 		fs.rmdir(directory, function () {});
@@ -1546,7 +1624,7 @@ Storage.nwSaveTeam = function (team) {
 		this.nwDeleteTeam(team);
 	}
 	team.filename = filename;
-	fs.writeFile(this.dir + 'Teams/' + filename, Storage.exportTeam(team.team).replace(/\n/g, '\r\n'));
+	fs.writeFile(this.dir + 'Teams/' + filename, Storage.exportTeam(team.team).replace(/\n/g, '\r\n'), function () {});
 };
 
 Storage.nwSaveTeams = function () {
@@ -1582,7 +1660,7 @@ Storage.nwDoSaveAllTeams = function () {
 		filename = $.trim(filename).replace(/[\\\/]+/g, '');
 
 		team.filename = filename;
-		fs.writeFile(this.dir + 'Teams/' + filename, Storage.exportTeam(team.team).replace(/\n/g, '\r\n'));
+		fs.writeFile(this.dir + 'Teams/' + filename, Storage.exportTeam(team.team).replace(/\n/g, '\r\n'), function () {});
 	}
 };
 
@@ -1623,7 +1701,6 @@ Storage.nwStopLoggingChat = function () {
 };
 Storage.nwLogChat = function (roomid, line) {
 	roomid = toRoomid(roomid);
-	var self = this;
 	if (!this.loggingChat) return;
 	var chatLogFdMonth = this.getLogMonth();
 	if (chatLogFdMonth !== this.chatLogFdMonth) {

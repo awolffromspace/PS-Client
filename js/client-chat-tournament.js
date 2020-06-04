@@ -81,7 +81,7 @@
 		});
 	}
 
-	var TournamentBox = this.TournamentBox = (function () {
+	this.TournamentBox = (function () {
 		function TournamentBox(room, $wrapper) {
 			this.room = room;
 			this.$wrapper = $wrapper;
@@ -223,6 +223,7 @@
 			this.$teamSelect.show();
 			var val = this.$teamSelect.children().val();
 			// this.$validate.toggle(val !== 'random');
+			this.$validate.attr('disabled', !val || !val.length || val === 'random' ? 'disabled' : null);
 			this.$validate.toggleClass('disabled', !val || !val.length || val === 'random');
 		};
 
@@ -244,6 +245,7 @@
 		};
 
 		TournamentBox.prototype.parseMessage = function (data, isBroadcast) {
+			var notify = !Dex.prefs('tournaments') || Dex.prefs('tournaments') === 'notify';
 			var cmd = data.shift().toLowerCase();
 			if (isBroadcast) {
 				switch (cmd) {
@@ -271,8 +273,8 @@
 				case 'create':
 					var formatName = window.BattleFormats && BattleFormats[data[0]] ? BattleFormats[data[0]].name : data[0];
 					var type = data[1];
-					this.room.$chat.append("<div class=\"notice tournament-message-create\">" + Tools.escapeHTML(formatName) + " " + Tools.escapeHTML(type) + " Tournament created.</div>");
-					this.room.notifyOnce("Tournament created", "Room: " + this.room.title + "\nFormat: " + formatName + "\nType: " + type, 'tournament-create');
+					this.room.$chat.append("<div class=\"notice tournament-message-create\">" + BattleLog.escapeHTML(formatName) + " " + BattleLog.escapeHTML(type) + " Tournament created.</div>");
+					if (notify) this.room.notifyOnce("Tournament created", "Room: " + this.room.title + "\nFormat: " + formatName + "\nType: " + type, 'tournament-create');
 					this.curTeamIndex = 0;
 					this.updateTeams();
 					break;
@@ -306,18 +308,23 @@
 					this.$lastJoinLeaveMessage.text(message.join("; ") + ".");
 					break;
 
+				case 'replace':
+					this.room.$chat.append("<div class=\"notice\">" + BattleLog.escapeHTML(data[1]) + " has joined the tournament, replacing " + BattleLog.escapeHTML(data[0]) + ".</div>");
+					break;
+
 				case 'start':
 					this.room.closeNotification('tournament-create');
 					if (!this.info.isJoined) {
 						this.toggleBoxVisibility(false);
-					} else if (this.info.teambuilderFormat.substr(0, 4) === 'gen5' && !Tools.loadedSpriteData['bw']) {
-						Tools.loadSpriteData('bw');
+					} else if (this.info.teambuilderFormat.substr(0, 4) === 'gen5' && !Dex.loadedSpriteData['bw']) {
+						Dex.loadSpriteData('bw');
 					}
-					this.room.$chat.append("<div class=\"notice tournament-message-start\">The tournament has started!</div>");
+					var participants = data[0] ? " (" + data[0] + " players)" : "";
+					this.room.$chat.append("<div class=\"notice tournament-message-start\">The tournament has started!" + participants + "</div>");
 					break;
 
 				case 'disqualify':
-					this.room.$chat.append("<div class=\"notice tournament-message-disqualify\">" + Tools.escapeHTML(data[0]) + " has been disqualified from the tournament.</div>");
+					this.room.$chat.append("<div class=\"notice tournament-message-disqualify\">" + BattleLog.escapeHTML(data[0]) + " has been disqualified from the tournament.</div>");
 					break;
 
 				case 'autodq':
@@ -329,7 +336,7 @@
 					} else {
 						var seconds = Math.floor(data[1] / 1000);
 						app.addPopupMessage("Please respond to the tournament within " + seconds + " seconds or you may be automatically disqualified.");
-						this.room.notifyOnce("Tournament Automatic Disqualification Warning", "Room: " + this.room.title + "\nSeconds: " + seconds, 'tournament-autodq-warning');
+						if (notify) this.room.notifyOnce("Tournament Automatic Disqualification Warning", "Room: " + this.room.title + "\nSeconds: " + seconds, 'tournament-autodq-warning');
 					}
 					break;
 
@@ -408,7 +415,7 @@
 								this.$challengeUserMenu.html(this.renderChallengeUsers());
 								this.toggleBoxVisibility(true);
 								if (!this.$challenge.hasClass('active')) {
-									this.room.notifyOnce("Tournament challenges available", "Room: " + this.room.title, 'tournament-challenges');
+									if (notify) this.room.notifyOnce("Tournament challenges available", "Room: " + this.room.title, 'tournament-challenges');
 								}
 							}
 							this.$challenge.toggleClass('active', this.info.challenges.length > 0);
@@ -432,7 +439,7 @@
 								this.$challengedMessage.text("vs. " + this.info.challenged);
 								this.toggleBoxVisibility(true);
 								if (!this.$challenged.hasClass('active')) {
-									this.room.notifyOnce("Tournament challenge from " + this.info.challenged, "Room: " + this.room.title, 'tournament-challenged');
+									if (notify) this.room.notifyOnce("Tournament challenge from " + this.info.challenged, "Room: " + this.room.title, 'tournament-challenged');
 								}
 							}
 							this.$challenged.toggleClass('active', !!this.info.challenged);
@@ -448,7 +455,7 @@
 				case 'battlestart':
 					var roomid = toRoomid(data[2]).toLowerCase();
 					this.room.$chat.append('<div class="notice tournament-message-battlestart tournament-' + roomid + '"><a href="' + app.root + roomid + '" class="ilink">' +
-						"Tournament battle between " + Tools.escapeHTML(data[0]) + " and " + Tools.escapeHTML(data[1]) + " started." +
+						"Tournament battle between " + BattleLog.escapeHTML(data[0]) + " and " + BattleLog.escapeHTML(data[1]) + " started." +
 						'</a></div>');
 					break;
 
@@ -458,7 +465,7 @@
 						result = "won";
 					else if (data[2] === 'loss')
 						result = "lost";
-					var message = Tools.escapeHTML(data[0]) + " has " + result + " the match " + Tools.escapeHTML(data[3].split(',').join(' - ')) + " against " + Tools.escapeHTML(data[1]) +
+					var message = BattleLog.escapeHTML(data[0]) + " has " + result + " the match " + BattleLog.escapeHTML(data[3].split(',').join(' - ')) + " against " + BattleLog.escapeHTML(data[1]) +
 						(data[4] === 'fail' ? " but the tournament does not support drawing, so it did not count" : "") + ".";
 					var $battleMessage = data[5] ? this.room.$chat.find('.tournament-' + toRoomid(data[5]).toLowerCase()) : '';
 					if ($battleMessage && $battleMessage.length) {
@@ -483,9 +490,9 @@
 					}
 
 					var type = endData.generator;
-					this.room.$chat.append("<div class=\"notice tournament-message-end-winner\">Congratulations to " + Tools.escapeHTML(arrayToPhrase(endData.results[0])) + " for winning the " + Tools.escapeFormat(endData.format) + " " + Tools.escapeHTML(type) + " Tournament!</div>");
+					this.room.$chat.append("<div class=\"notice tournament-message-end-winner\">Congratulations to " + BattleLog.escapeHTML(arrayToPhrase(endData.results[0])) + " for winning the " + BattleLog.escapeFormat(endData.format) + " " + BattleLog.escapeHTML(type) + " Tournament!</div>");
 					if (endData.results[1])
-						this.room.$chat.append("<div class=\"notice tournament-message-end-runnerup\">Runner-up" + (endData.results[1].length > 1 ? "s" : "") + ": " + Tools.escapeHTML(arrayToPhrase(endData.results[1])) + "</div>");
+						this.room.$chat.append("<div class=\"notice tournament-message-end-runnerup\">Runner" + (endData.results[1].length > 1 ? "s" : "") + "-up: " + BattleLog.escapeHTML(arrayToPhrase(endData.results[1])) + "</div>");
 
 					// Fallthrough
 
@@ -510,7 +517,7 @@
 
 				case 'error':
 					var appendError = function (message) {
-						this.room.$chat.append("<div class=\"notice tournament-message-forceend\">" + Tools.sanitizeHTML(message) + "</div>");
+						this.room.$chat.append("<div class=\"notice tournament-message-forceend\">" + BattleLog.sanitizeHTML(message) + "</div>");
 					}.bind(this);
 
 					switch (data[0]) {
@@ -586,7 +593,7 @@
 				if (!data.rootNode) {
 					if (!('users' in data)) return;
 					var users = data.users.length;
-					if (users) $div.html('<b>' + users + '</b> user' + (users !== 1 ? 's' : '') + ':<br />' + Tools.escapeHTML(data.users.join(", ")));
+					if (users) $div.html('<b>' + users + '</b> user' + (users !== 1 ? 's' : '') + ':<br />' + BattleLog.escapeHTML(data.users.join(", ")));
 					return $div;
 				}
 
@@ -606,6 +613,7 @@
 						nodesByDepth.push(0);
 					++nodesByDepth[frame.depth];
 
+					if (!frame.node.children) frame.node.children = [];
 					frame.node.children.forEach(function (child) {
 						stack.push({node: child, depth: frame.depth + 1});
 					});
@@ -787,14 +795,14 @@
 		};
 
 		TournamentBox.prototype.renderChallengeUsers = function () {
-			return ' <button class="button" value="' + toId(this.info.challenges[0]) + '" name="tournamentButton" data-type="challengeUser">Change opponent</button>';
+			return ' <button class="button" value="' + toID(this.info.challenges[0]) + '" name="tournamentButton" data-type="challengeUser">Change opponent</button>';
 		};
 		TournamentBox.prototype.challengeUser = function (user, button) {
 			app.addPopup(UserPopup, {user: user, users: this.info.challenges, sourceEl: button});
 		};
 
 		TournamentBox.prototype.teamSelect = function (team, button) {
-			app.addPopup(TeamPopup, {team: team, format: this.info.teambuilderFormat, sourceEl: button, room: this.room.id});
+			app.addPopup(TeamPopup, {team: team, format: this.info.teambuilderFormat, sourceEl: button, room: this.room.id, isMoreTeams: false, folderToggleOn: true, folderNotExpanded: []});
 		};
 
 		return TournamentBox;
@@ -803,12 +811,12 @@
 	var UserPopup = this.Popup.extend({
 		initialize: function (data) {
 			this.$el.html('<ul class="popupmenu">' + data.users.map(function (user) {
-				var escapedUser = Tools.escapeHTML(user);
-				return '<li><button name="selectUser" value="' + Tools.escapeQuotes(escapedUser) + '"' + (user === data.user ? ' class="sel"' : '') + '>' + escapedUser + '</button></li>';
+				var escapedUser = BattleLog.escapeHTML(user);
+				return '<li><button name="selectUser" value="' + escapedUser + '"' + (user === data.user ? ' class="sel"' : '') + '>' + escapedUser + '</button></li>';
 			}).join('') + '</ul>');
 		},
 		selectUser: function (user) {
-			this.sourceEl.val(toId(user));
+			this.sourceEl.val(toID(user));
 			this.sourceEl.parent().parent().find('.tournament-challenge-user').text('vs. ' + user);
 			this.close();
 		}

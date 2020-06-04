@@ -10,6 +10,11 @@ function getProxy(ab, callback) {
 var $link = $('<link rel="stylesheet" href="/js/style.css" />');
 $('head').append($link);
 
+function toId() {
+	// toId has been renamed toID
+	alert("You have an old extension/script for Pokemon Showdown which is incompatible with this client. It needs to be removed or updated.");
+}
+
 (function ($) {
 
 	Config.sockjsprefix = '/showdown';
@@ -22,6 +27,7 @@ $('head').append($link);
 	if (navigator.userAgent.match(/(iPod|iPhone|iPad)/)) {
 		// Android mobile-web-app-capable doesn't support it very well, but iOS
 		// does it fine, so we're only going to show this to iOS for now
+		window.isiOS = true;
 		$('head').append('<meta name="apple-mobile-web-app-capable" content="yes" />');
 	}
 
@@ -133,12 +139,6 @@ $('head').append($link);
 		});
 	}
 
-	// sanitize a room ID
-	// shouldn't actually do anything except against a malicious server
-	var toRoomid = this.toRoomid = function (roomid) {
-		return roomid.replace(/[^a-zA-Z0-9-]+/g, '').toLowerCase();
-	};
-
 	// support Safari 6 notifications
 	if (!window.Notification && window.webkitNotification) {
 		window.Notification = window.webkitNotification;
@@ -156,13 +156,16 @@ $('head').append($link);
 			userid: '',
 			registered: false,
 			named: false,
-			avatar: 0
+			avatar: 0,
+			settings: {},
+			status: '',
+			away: false
 		},
 		initialize: function () {
 			app.addGlobalListeners();
 			app.on('response:userdetails', function (data) {
 				if (data.userid === this.get('userid')) {
-					this.set('avatar', data.avatar);
+					this.set('avatar', '' + data.avatar);
 				}
 			}, this);
 			var self = this;
@@ -183,6 +186,9 @@ $('head').append($link);
 					self.nameRegExp = new RegExp('(?:\\b|(?!\\w))' + escaped + '(?:\\b|\\B(?!\\w))', 'i');
 				}
 			});
+			this.on('change:settings', function () {
+				Dex.prefs('serversettings', self.get('settings'));
+			});
 
 			var replaceList = {'A': 'ＡⱯȺ', 'B': 'ＢƂƁɃ', 'C': 'ＣꜾȻ', 'D': 'ＤĐƋƊƉꝹ', 'E': 'ＥƐƎ', 'F': 'ＦƑꝻ', 'G': 'ＧꞠꝽꝾ', 'H': 'ＨĦⱧⱵꞍ', 'I': 'ＩƗ', 'J': 'ＪɈ', 'K': 'ＫꞢ', 'L': 'ＬꝆꞀ', 'M': 'ＭⱮƜ', 'N': 'ＮȠƝꞐꞤ', 'O': 'ＯǪǬØǾƆƟꝊꝌ', 'P': 'ＰƤⱣꝐꝒꝔ', 'Q': 'ＱꝖꝘɊ', 'R': 'ＲɌⱤꝚꞦꞂ', 'S': 'ＳẞꞨꞄ', 'T': 'ＴŦƬƮȾꞆ', 'U': 'ＵɄ', 'V': 'ＶƲꝞɅ', 'W': 'ＷⱲ', 'X': 'Ｘ', 'Y': 'ＹɎỾ', 'Z': 'ＺƵȤⱿⱫꝢ', 'a': 'ａąⱥɐ', 'b': 'ｂƀƃɓ', 'c': 'ｃȼꜿↄ', 'd': 'ｄđƌɖɗꝺ', 'e': 'ｅɇɛǝ', 'f': 'ｆḟƒꝼ', 'g': 'ｇɠꞡᵹꝿ', 'h': 'ｈħⱨⱶɥ', 'i': 'ｉɨı', 'j': 'ｊɉ', 'k': 'ｋƙⱪꝁꝃꝅꞣ', 'l': 'ｌſłƚɫⱡꝉꞁꝇ', 'm': 'ｍɱɯ', 'n': 'ｎƞɲŉꞑꞥ', 'o': 'ｏǫǭøǿɔꝋꝍɵ', 'p': 'ｐƥᵽꝑꝓꝕ', 'q': 'ｑɋꝗꝙ', 'r': 'ｒɍɽꝛꞧꞃ', 's': 'ｓꞩꞅẛ', 't': 'ｔŧƭʈⱦꞇ', 'u': 'ｕưừứữửựųṷṵʉ', 'v': 'ｖʋꝟʌ', 'w': 'ｗⱳ', 'x': 'ｘ', 'y': 'ｙɏỿ', 'z': 'ｚƶȥɀⱬꝣ', 'AA': 'Ꜳ', 'AE': 'ÆǼǢ', 'AO': 'Ꜵ', 'AU': 'Ꜷ', 'AV': 'ꜸꜺ', 'AY': 'Ꜽ', 'DZ': 'ǱǄ', 'Dz': 'ǲǅ', 'LJ': 'Ǉ', 'Lj': 'ǈ', 'NJ': 'Ǌ', 'Nj': 'ǋ', 'OI': 'Ƣ', 'OO': 'Ꝏ', 'OU': 'Ȣ', 'TZ': 'Ꜩ', 'VY': 'Ꝡ', 'aa': 'ꜳ', 'ae': 'æǽǣ', 'ao': 'ꜵ', 'au': 'ꜷ', 'av': 'ꜹꜻ', 'ay': 'ꜽ', 'dz': 'ǳǆ', 'hv': 'ƕ', 'lj': 'ǉ', 'nj': 'ǌ', 'oi': 'ƣ', 'ou': 'ȣ', 'oo': 'ꝏ', 'ss': 'ß', 'tz': 'ꜩ', 'vy': 'ꝡ'};
 			var normalizeList = {'A': 'ÀÁÂẦẤẪẨÃĀĂẰẮẴẲȦǠÄǞẢÅǺǍȀȂẠẬẶḀĄ', 'B': 'ḂḄḆ', 'C': 'ĆĈĊČÇḈƇ', 'D': 'ḊĎḌḐḒḎ', 'E': 'ÈÉÊỀẾỄỂẼĒḔḖĔĖËẺĚȄȆẸỆȨḜĘḘḚ', 'F': 'Ḟ', 'G': 'ǴĜḠĞĠǦĢǤƓ', 'H': 'ĤḢḦȞḤḨḪ', 'I': 'ÌÍÎĨĪĬİÏḮỈǏȈȊỊĮḬ', 'J': 'Ĵ', 'K': 'ḰǨḲĶḴƘⱩꝀꝂꝄ', 'L': 'ĿĹĽḶḸĻḼḺŁȽⱢⱠꝈ', 'M': 'ḾṀṂ', 'N': 'ǸŃÑṄŇṆŅṊṈ', 'O': 'ÒÓÔỒỐỖỔÕṌȬṎŌṐṒŎȮȰÖȪỎŐǑȌȎƠỜỚỠỞỢỌỘ', 'P': 'ṔṖ', 'Q': '', 'R': 'ŔṘŘȐȒṚṜŖṞ', 'S': 'ŚṤŜṠŠṦṢṨȘŞⱾ', 'T': 'ṪŤṬȚŢṰṮ', 'U': 'ÙÚÛŨṸŪṺŬÜǛǗǕǙỦŮŰǓȔȖƯỪỨỮỬỰỤṲŲṶṴ', 'V': 'ṼṾ', 'W': 'ẀẂŴẆẄẈ', 'X': 'ẊẌ', 'Y': 'ỲÝŶỸȲẎŸỶỴƳ', 'Z': 'ŹẐŻŽẒẔ', 'a': 'ẚàáâầấẫẩãāăằắẵẳȧǡäǟảåǻǎȁȃạậặḁ', 'b': 'ḃḅḇ', 'c': 'ćĉċčçḉƈ', 'd': 'ḋďḍḑḓḏ', 'e': 'èéêềếễểẽēḕḗĕėëẻěȅȇẹệȩḝęḙḛ', 'f': '', 'g': 'ǵĝḡğġǧģǥ', 'h': 'ĥḣḧȟḥḩḫẖ', 'i': 'ìíîĩīĭïḯỉǐȉȋịįḭ', 'j': 'ĵǰ', 'k': 'ḱǩḳķḵ', 'l': 'ŀĺľḷḹļḽḻ', 'm': 'ḿṁṃ', 'n': 'ǹńñṅňṇņṋṉ', 'o': 'òóôồốỗổõṍȭṏōṑṓŏȯȱöȫỏőǒȍȏơờớỡởợọộ', 'p': 'ṕṗ', 'q': '', 'r': 'ŕṙřȑȓṛṝŗṟ', 's': 'śṥŝṡšṧṣṩșşȿ', 't': 'ṫẗťṭțţṱṯ', 'u': 'ùúûũṹūṻŭüǜǘǖǚủůűǔȕȗụṳ', 'v': 'ṽṿ', 'w': 'ẁẃŵẇẅẘẉ', 'x': 'ẋẍ', 'y': 'ỳýŷỹȳẏÿỷẙỵƴ', 'z': 'źẑżžẓẕ'};
@@ -194,6 +200,23 @@ $('head').append($link);
 			}
 			this.replaceList = replaceList;
 			this.normalizeList = normalizeList;
+		},
+		updateSetting: function (setting, value) {
+			var settings = this.get('settings');
+			if (settings[setting] !== value) {
+				switch (setting) {
+				case 'blockPMs':
+					app.send(value ? '/blockpms' : '/unblockpms');
+					break;
+				case 'blockChallenges':
+					app.send(value ? '/blockchallenges' : '/unblockchallenges');
+					break;
+				default:
+					throw new TypeError('Unknown setting:' + setting);
+				}
+				settings[setting] = value;
+				this.set('settings', settings);
+			}
 		},
 		/**
 		 * Return the path to the login server `action.php` file. AJAX requests
@@ -231,14 +254,7 @@ $('head').append($link);
 			if (assertion.charAt(0) === '\r') assertion = assertion.slice(1);
 			if (assertion.charAt(0) === '\n') assertion = assertion.slice(1);
 			if (assertion.indexOf('<') >= 0) {
-				if (assertion.indexOf('accessdenied') >= 0) {
-					app.addPopupMessage("Your internet filter is blocking Pokémon Showdown.");
-					return;
-				}
-				app.addPopupMessage("Something is interfering with our connection to the login server.");
-				assertion = assertion.replace(/[\r\n]+/g, ' ');
-				// send to server anyway in case server knows how to deal with it
-				app.send('/trn ' + name + ',0,' + assertion);
+				app.addPopupMessage("Something is interfering with our connection to the login server. Most likely, your internet provider needs you to re-log-in, or your internet provider is blocking Pokémon Showdown.");
 				return;
 			}
 			if (assertion === ';') {
@@ -272,7 +288,7 @@ $('head').append($link);
 			}
 			var userid = toUserid(name);
 			if (!userid) {
-				app.addPopupMessage("Usernames must contain at least one letter or number.");
+				app.addPopupMessage("Usernames must contain at least one letter.");
 				return;
 			}
 
@@ -296,7 +312,7 @@ $('head').append($link);
 				name: name,
 				pass: password,
 				challstr: this.challstr
-			}, Tools.safeJSON(function (data) {
+			}, Storage.safeJSON(function (data) {
 				if (data && data.curuser && data.curuser.loggedin) {
 					// success!
 					self.set('registered', data.curuser);
@@ -335,7 +351,7 @@ $('head').append($link);
 				postProxy(this.getActionPHP(), {
 					act: 'upkeep',
 					challstr: this.challstr
-				}, Tools.safeJSON(function (data) {
+				}, Storage.safeJSON(function (data) {
 					self.loaded = true;
 					if (!data.username) {
 						app.topbar.updateUserbar();
@@ -375,7 +391,7 @@ $('head').append($link);
 		}
 	});
 
-	var App = this.App = Backbone.Router.extend({
+	this.App = Backbone.Router.extend({
 		root: '/',
 		routes: {
 			'*path': 'dispatchFragment'
@@ -397,6 +413,12 @@ $('head').append($link);
 			this.topbar = new Topbar({el: $('#header')});
 			if (this.down) {
 				this.isDisconnected = true;
+			// } else if (location.origin === 'http://smogtours.psim.us') {
+			// 	this.isDisconnected = true;
+			// 	this.addPopup(Popup, {
+			// 		message: "The Smogtours server no longer supports HTTP. Please use https://smogtours.psim.us",
+			// 		type: 'modal'
+			// 	});
 			} else {
 				if (document.location.hostname === 'play.pokemonshowdown.com' || Config.testclient) {
 					this.addRoom('rooms', null, true);
@@ -409,7 +431,12 @@ $('head').append($link);
 						Backbone.history.start({pushState: !Config.testclient});
 						return;
 					}
-					var autojoin = (Tools.prefs('autojoin') || '');
+					// Support legacy tournament setting and migrate to new pref
+					if (Dex.prefs('notournaments') !== undefined) {
+						Dex.prefs('tournaments', Dex.prefs('notournaments') ? 'hide' : 'notify');
+						Dex.prefs('notournaments', null, true);
+					}
+					var autojoin = (Dex.prefs('autojoin') || '');
 					var autojoinIds = [];
 					if (typeof autojoin === 'string') {
 						// Use the existing autojoin string for showdown, and an empty string for other servers.
@@ -429,7 +456,8 @@ $('head').append($link);
 						}
 					}
 					app.send('/autojoin ' + autojoinIds.join(','));
-
+					var settings = Dex.prefs('serversettings') || {};
+					if (Object.keys(settings).length) app.user.set('settings', settings);
 					// HTML5 history throws exceptions when running on file://
 					Backbone.history.start({pushState: !Config.testclient});
 				});
@@ -440,19 +468,19 @@ $('head').append($link);
 			Storage.whenPrefsLoaded(function () {
 				Storage.prefs('bg', null);
 
-				var muted = Tools.prefs('mute');
+				var muted = Dex.prefs('mute');
 				BattleSound.setMute(muted);
 
-				$('html').toggleClass('dark', !!Tools.prefs('dark'));
+				$('html').toggleClass('dark', !!Dex.prefs('dark'));
 
-				var effectVolume = Tools.prefs('effectvolume');
+				var effectVolume = Dex.prefs('effectvolume');
 				if (effectVolume !== undefined) BattleSound.setEffectVolume(effectVolume);
 
-				var musicVolume = Tools.prefs('musicvolume');
+				var musicVolume = Dex.prefs('musicvolume');
 				if (musicVolume !== undefined) BattleSound.setBgmVolume(musicVolume);
 
-				if (Tools.prefs('logchat')) Storage.startLoggingChat();
-				if (Tools.prefs('showdebug')) {
+				if (Dex.prefs('logchat')) Storage.startLoggingChat();
+				if (Dex.prefs('showdebug')) {
 					var debugStyle = $('#debugstyle').get(0);
 					var onCSS = '.debug {display: block;}';
 					if (!debugStyle) {
@@ -462,16 +490,16 @@ $('head').append($link);
 					}
 				}
 
-				if (Tools.prefs('onepanel')) {
+				if (Dex.prefs('onepanel')) {
 					self.singlePanelMode = true;
 					self.updateLayout();
 				}
 
-				if (Tools.prefs('bwgfx') || Tools.prefs('noanim')) {
+				if (Dex.prefs('bwgfx') || Dex.prefs('noanim')) {
 					// since xy data is loaded by default, only call
 					// loadSpriteData if we want bw sprites or if we need bw
 					// sprite data (if animations are disabled)
-					Tools.loadSpriteData('bw');
+					Dex.loadSpriteData('bw');
 				}
 			});
 
@@ -486,7 +514,11 @@ $('head').append($link);
 			this.on('init:socketclosed', function (message, showNotification) {
 				// Display a desktop notification if the user won't immediately see the popup.
 				if (self.isDisconnected) return;
+
+				clearTimeout(this.hostCheckInterval);
+				this.hostCheckInterval = null;
 				self.isDisconnected = true;
+
 				if (showNotification !== false && (self.popups.length || !self.focused) && window.Notification) {
 					self.rooms[''].requestNotifications();
 					var disconnect = new Notification("Disconnected!", {lang: 'en', body: "You have been disconnected from Pokémon Showdown."});
@@ -494,9 +526,12 @@ $('head').append($link);
 						window.focus();
 					};
 				}
+
 				self.rooms[''].updateFormats();
 				$('.pm-log-add form').html('<small>You are disconnected and cannot chat.</small>');
 				$('.chat-log-add').html('<small>You are disconnected and cannot chat.</small>');
+				$('.battle-log-add').html('<small>You are disconnected and cannot chat.</small>');
+
 				self.reconnectPending = (message || true);
 				if (!self.popups.length) self.addPopup(ReconnectPopup, {message: message});
 			});
@@ -548,7 +583,15 @@ $('head').append($link);
 				if (app.isDisconnected) return;
 				for (var id in self.rooms) {
 					var room = self.rooms[id];
-					if (room && room.requestLeave && !room.requestLeave()) return "You have active battles.";
+					if (room && room.requestLeave && !room.requestLeave()) {
+						e.returnValue = "You have active battles.";
+						return e.returnValue;
+					}
+				}
+
+				if (Dex.prefs('refreshprompt')) {
+					e.returnValue = "Are you sure you want to refresh?";
+					return e.returnValue;
 				}
 			});
 
@@ -665,7 +708,7 @@ $('head').append($link);
 		 */
 		initializeConnection: function () {
 			Storage.whenPrefsLoaded(function () {
-				// Config.server.afd = true;
+				// if (Config.server.id !== 'smogtours') Config.server.afd = true;
 				app.connect();
 			});
 		},
@@ -684,17 +727,12 @@ $('head').append($link);
 
 			var self = this;
 			var constructSocket = function () {
-				var protocol = (Config.server.port === 443) ? 'https' : 'http';
+				var protocol = (Config.server.port === 443 || Config.server.https) ? 'https' : 'http';
 				Config.server.host = $.trim(Config.server.host);
 				return new SockJS(protocol + '://' + Config.server.host + ':' +
-					Config.server.port + Config.sockjsprefix);
+					Config.server.port + Config.sockjsprefix, [], {timeout: 5 * 60 * 1000});
 			};
 			this.socket = constructSocket();
-			setInterval(function () {
-				if (Config.server.host !== $.trim(Config.server.host)) {
-					app.socket.close();
-				}
-			}, 500);
 
 			var socketopened = false;
 			var altport = (Config.server.port === Config.server.altport);
@@ -707,7 +745,7 @@ $('head').append($link);
 				}
 				self.trigger('init:socketopened');
 
-				var avatar = Tools.prefs('avatar');
+				var avatar = Dex.prefs('avatar');
 				if (avatar) {
 					// This will be compatible even with servers that don't support
 					// the second argument for /avatar yet.
@@ -721,6 +759,14 @@ $('head').append($link);
 						self.send(queue[i], true);
 					}
 				}
+
+				this.hostCheckInterval = setTimeout(function checkHost() {
+					if (Config.server.host !== $.trim(Config.server.host)) {
+						app.socket.close();
+					} else {
+						app.hostCheckInterval = setTimeout(checkHost, 500);
+					}
+				}, 500);
 			};
 			this.socket.onmessage = function (msg) {
 				if (window.console && console.log) {
@@ -786,7 +832,12 @@ $('head').append($link);
 		 * Send team to sim server
 		 */
 		sendTeam: function (team) {
-			this.send('/utm ' + Storage.getPackedTeam(team));
+			var packedTeam = '' + Storage.getPackedTeam(team);
+			if (packedTeam.length > 100 * 1024 - 6) {
+				alert("Your team is over 100 KB, usually caused by having over 600 Pokemon in it. Please use a smaller team.");
+				return;
+			}
+			this.send('/utm ' + packedTeam);
 		},
 		/**
 		 * Receive from sim server
@@ -805,7 +856,7 @@ $('head').append($link);
 				var roomType = data.substr(6);
 				var roomTypeLFIndex = roomType.indexOf('\n');
 				if (roomTypeLFIndex >= 0) roomType = roomType.substr(0, roomTypeLFIndex);
-				roomType = toId(roomType);
+				roomType = toID(roomType);
 				if (this.rooms[roomid] || roomid === 'staff' || roomid === 'upperstaff') {
 					// autojoin rooms are joined in background
 					this.addRoom(roomid, roomType, true);
@@ -844,8 +895,28 @@ $('head').append($link);
 						self.send('/join ' + roomid);
 					});
 				} else if (data === 'rename') {
-					this.renameRoom(roomid, errormessage);
-				} else if (data !== 'namepending') {
+					// |newid|newtitle
+					var parts = errormessage.split('|');
+					this.renameRoom(roomid, parts[0], parts[1]);
+				} else if (data === 'nonexistent' && Config.server.id && roomid.slice(0, 7) === 'battle-' && errormessage) {
+					var replayid = roomid.slice(7);
+					if (Config.server.id !== 'showdown') replayid = Config.server.id + '-' + replayid;
+					var replayLink = 'https://replay.pokemonshowdown.com/' + replayid;
+					$.ajax(replayLink + '.json', {dataType: 'json'}).done(function (replay) {
+						if (replay) {
+							var title = BattleLog.escapeHTML(replay.p1) + ' vs. ' + BattleLog.escapeHTML(replay.p2);
+							app.receive('>battle-' + replayid + '\n|init|battle\n|title|' + title + '\n' + replay.log);
+							app.receive('>battle-' + replayid + '\n|expire|<a href=' + replayLink + ' target="_blank" class="no-panel-intercept">Open replay in new tab</a>');
+						} else {
+							errormessage += '\n\nResponse received, but no data.';
+							app.addPopupMessage(errormessage);
+						}
+					}).fail(function () {
+						app.removeRoom(roomid, true);
+						errormessage += "\n\nThe battle you're looking for has expired. Battles expire after 15 minutes of inactivity unless they're saved.\nIn the future, remember to click \"Save replay\" to save a replay permanently.";
+						app.addPopupMessage(errormessage);
+					});
+				} else {
 					if (isdeinit) { // deinit
 						if (this.rooms[roomid] && this.rooms[roomid].type === 'chat') {
 							this.removeRoom(roomid, true);
@@ -857,15 +928,7 @@ $('head').append($link);
 						this.unjoinRoom(roomid);
 						if (roomid === 'lobby') this.joinRoom('rooms');
 					}
-					if (errormessage) {
-						if (data === 'nonexistent' && Config.server.id && roomid.slice(0, 7) === 'battle-') {
-							var replayid = roomid.slice(7);
-							if (Config.server.id !== 'showdown') replayid = Config.server.id + '-' + replayid;
-							var replayLink = 'http://replay.pokemonshowdown.com/' + replayid;
-							errormessage += '\n\nYou might want to try the replay: ' + replayLink;
-						}
-						this.addPopupMessage(errormessage);
-					}
+					if (errormessage) this.addPopupMessage(errormessage);
 				}
 				return;
 			} else if (data.substr(0, 3) === '|N|') {
@@ -923,32 +986,45 @@ $('head').append($link);
 				var nlIndex = data.indexOf('\n');
 				if (nlIndex > 0) {
 					this.receive(data.substr(nlIndex + 1));
-					nlIndex = parts[3].indexOf('\n');
-					parts[3] = parts[3].substr(0, nlIndex);
+					parts = data.slice(1, nlIndex).split('|');
 				}
-				var name = parts[1];
+				var parsed = BattleTextParser.parseNameParts(parts[1]);
 				var named = !!+parts[2];
 
-				var userid = toUserid(name);
-				if (userid === this.user.get('userid') && name !== this.user.get('name')) {
+				var userid = toUserid(parsed.name);
+				if (userid === this.user.get('userid') && parsed.name !== this.user.get('name')) {
 					postProxy(app.user.getActionPHP(), {
 						act: 'changeusername',
-						username: name
+						username: parsed.name
 					}, function () {}, 'text');
 				}
 
+				var settings = app.user.get('settings');
+				if (parts.length > 4) {
+					// Update our existing settings based on what the server has sent us.
+					// This approach is more robust as it works regardless of whether the
+					// server sends us all the values or just the diffs.
+					var update = JSON.parse(parts[4]);
+					for (var key in update) {
+						settings[key] = update[key];
+					}
+				}
+
 				this.user.set({
-					name: name,
+					name: parsed.name,
 					userid: userid,
 					named: named,
-					avatar: parts[3]
+					avatar: parts[3],
+					settings: settings,
+					status: parsed.status,
+					away: parsed.away
 				});
-				this.user.setPersistentName(named ? name : null);
+				this.user.setPersistentName(named ? parsed.name : null);
 				if (named) {
 					this.trigger('init:choosename');
 				}
-				if (app.ignore[toUserid(name)]) {
-					delete app.ignore[toUserid(name)];
+				if (app.ignore[userid]) {
+					delete app.ignore[userid];
 				}
 				break;
 
@@ -963,13 +1039,13 @@ $('head').append($link);
 
 			case 'updatechallenges':
 				if (this.rooms['']) {
-					this.rooms[''].updateChallenges($.parseJSON(data.substr(18)));
+					this.rooms[''].updateChallenges(JSON.parse(data.substr(18)));
 				}
 				break;
 
 			case 'updatesearch':
 				if (this.rooms['']) {
-					this.rooms[''].updateSearch($.parseJSON(data.substr(14)));
+					this.rooms[''].updateSearch(JSON.parse(data.substr(14)));
 				}
 				break;
 
@@ -990,7 +1066,7 @@ $('head').append($link);
 					app.addPopup(Popup, {
 						type: type,
 						maxWidth: maxWidth,
-						htmlMessage: Tools.sanitizeHTML(data)
+						htmlMessage: BattleLog.sanitizeHTML(data)
 					});
 				} else {
 					app.addPopup(Popup, {
@@ -1003,7 +1079,7 @@ $('head').append($link);
 				break;
 
 			case 'disconnect':
-				app.trigger('init:socketclosed', Tools.sanitizeHTML(data.substr(12)));
+				app.trigger('init:socketclosed', BattleLog.sanitizeHTML(data.substr(12)));
 				break;
 
 			case 'pm':
@@ -1070,7 +1146,7 @@ $('head').append($link);
 				if (!groupName) Config.defaultGroup = symbol;
 
 				groups[symbol] = {
-					name: groupName ? Tools.escapeHTML(groupName + ' (' + symbol + ')') : null,
+					name: groupName ? BattleLog.escapeHTML(groupName + ' (' + symbol + ')') : null,
 					type: groupType,
 					order: i + 1
 				};
@@ -1132,7 +1208,7 @@ $('head').append($link);
 							name = name.substr(0, name.length - 1);
 						}
 					}
-					var id = toId(name);
+					var id = toID(name);
 					var isTeambuilderFormat = !team && name.slice(-11) !== 'Custom Game';
 					var teambuilderFormat = '';
 					var teambuilderFormatName = '';
@@ -1147,7 +1223,7 @@ $('head').append($link);
 							teambuilderFormatName = $.trim(teambuilderFormatName.slice(0, parenPos));
 						}
 						if (teambuilderFormatName !== name) {
-							teambuilderFormat = toId(teambuilderFormatName);
+							teambuilderFormat = toID(teambuilderFormatName);
 							if (BattleFormats[teambuilderFormat]) {
 								BattleFormats[teambuilderFormat].isTeambuilderFormat = true;
 							} else {
@@ -1179,7 +1255,7 @@ $('head').append($link);
 						searchShow: searchShow,
 						challengeShow: challengeShow,
 						tournamentShow: tournamentShow,
-						rated: searchShow && id.substr(0, 7) !== 'unrated',
+						rated: searchShow && id.substr(4, 7) !== 'unrated',
 						teambuilderLevel: teambuilderLevel,
 						teambuilderFormat: teambuilderFormat,
 						isTeambuilderFormat: isTeambuilderFormat,
@@ -1208,14 +1284,17 @@ $('head').append($link);
 		},
 		uploadReplay: function (data) {
 			var id = data.id;
-			var serverid = Config.server.id && toId(Config.server.id.split(':')[0]);
+			var serverid = Config.server.id && toID(Config.server.id.split(':')[0]);
+			var silent = data.silent;
 			if (serverid && serverid !== 'showdown') id = serverid + '-' + id;
 			postProxy(app.user.getActionPHP() + '?act=uploadreplay', {
 				log: data.log,
 				id: id
 			}, function (data) {
-				if (data === 'success') {
-					app.addPopup(ReplayUploadedPopup, {id: id});
+				if (silent) return;
+				var sData = data.split(':');
+				if (sData[0] === 'success') {
+					app.addPopup(ReplayUploadedPopup, {id: sData[1] || id});
 				} else if (data === 'hash mismatch') {
 					app.addPopupMessage("Someone else is already uploading a replay of this battle. Try again in five seconds.");
 				} else if (data === 'not found') {
@@ -1238,10 +1317,22 @@ $('head').append($link);
 				if (this.className === 'closebutton') return; // handled elsewhere
 				if (this.className.indexOf('minilogo') >= 0) return; // handled elsewhere
 				if (!this.href) return; // should never happen
-				if (this.host === 'play.pokemonshowdown.com' || this.host === 'psim.us' || this.host === location.host) {
+				var isReplayLink = this.host === 'replay.pokemonshowdown.com' && Config.server.id === 'showdown';
+				if ((
+					isReplayLink || ['play.pokemonshowdown.com', 'psim.us', location.host].includes(this.host)
+				) && this.className !== 'no-panel-intercept') {
 					if (!e.cmdKey && !e.metaKey && !e.ctrlKey) {
 						var target = this.pathname.substr(1);
-						var shortLinks = /^(appeals?|rooms?suggestions?|suggestions?|adminrequests?|bugs?|bugreports?|rules?|faq|credits?|news|privacy|contact|dex|insecure)$/;
+						var shortLinks = /^(rooms?suggestions?|suggestions?|adminrequests?|bugs?|bugreports?|rules?|faq|credits?|news|privacy|contact|dex|insecure|replays?|forgotpassword)$/;
+						if (target === 'appeal' || target === 'appeals') target = 'view-help-request--appeal';
+						if (target === 'report') target = 'view-help-request--report';
+						if (isReplayLink) {
+							if (!target || target === 'search') {
+								target = '.';
+							} else if (target.slice(0, 7) !== "battle-") {
+								target = 'battle-' + target;
+							}
+						}
 						if (target.indexOf('/') < 0 && target.indexOf('.') < 0 && !shortLinks.test(target)) {
 							if (this.dataset && this.dataset.target === 'replace') {
 								var roomEl = $(this).closest('.ps-room')[0];
@@ -1270,9 +1361,9 @@ $('head').append($link);
 					return;
 				}
 				if (this.rel === 'noopener') {
-					var formatOptions = Tools.prefs('chatformatting') || {};
-					if (!formatOptions.hideinterstice && !Tools.interstice.isWhitelisted(this.href)) {
-						this.href = Tools.interstice.getURI(this.href);
+					var formatOptions = Dex.prefs('chatformatting') || {};
+					if (!formatOptions.hideinterstice && !BattleLog.interstice.isWhitelisted(this.href)) {
+						this.href = BattleLog.interstice.getURI(this.href);
 					}
 				} else if (this.target === '_blank') {
 					// for performance reasons, there's no reason to ever have an opener
@@ -1320,7 +1411,7 @@ $('head').append($link);
 				if (this.rooms[id].rejoin) this.rooms[id].rejoin();
 				return this.rooms[id];
 			}
-			if (id.substr(0, 11) === 'battle-gen5' && !Tools.loadedSpriteData['bw']) Tools.loadSpriteData('bw');
+			if (id.substr(0, 11) === 'battle-gen5' && !Dex.loadedSpriteData['bw']) Dex.loadSpriteData('bw');
 
 			var room = this._addRoom(id, type, nojoin);
 			this.focusRoom(id);
@@ -1424,12 +1515,12 @@ $('head').append($link);
 			}
 			return room;
 		},
-		focusRoom: function (id) {
+		focusRoom: function (id, focusTextbox) {
 			var room = this.rooms[id];
 			if (!room) return false;
 			BattleTooltips.hideTooltip();
 			if (this.curRoom === room || this.curSideRoom === room) {
-				room.focus();
+				room.focus(null, focusTextbox);
 				return true;
 			}
 
@@ -1451,14 +1542,14 @@ $('head').append($link);
 				}
 			}
 
-			room.focus();
+			room.focus(null, focusTextbox);
 			return;
 		},
 		focusRoomLeft: function (id) {
 			var room = this.rooms[id];
 			if (!room) return false;
 			if (this.curRoom === room) {
-				room.focus();
+				room.focus(null, true);
 				return true;
 			}
 
@@ -1477,14 +1568,14 @@ $('head').append($link);
 			this.updateLayout();
 			if (this.curRoom.id === id) this.navigate(id);
 
-			room.focus();
+			room.focus(null, true);
 			return;
 		},
 		focusRoomRight: function (id) {
 			var room = this.rooms[id];
 			if (!room) return false;
 			if (this.curSideRoom === room) {
-				room.focus();
+				room.focus(null, true);
 				return true;
 			}
 
@@ -1501,7 +1592,7 @@ $('head').append($link);
 			this.updateLayout();
 			// if (this.curRoom.id === id) this.navigate(id);
 
-			room.focus();
+			room.focus(null, true);
 			return;
 		},
 		/**
@@ -1535,7 +1626,6 @@ $('head').append($link);
 			var leftMin = (this.curRoom.minWidth || this.curRoom.bestWidth);
 			var leftMinMain = (this.curRoom.minMainWidth || leftMin);
 			var rightMin = (this.sideRoom.minWidth || this.sideRoom.bestWidth);
-			var rightMinMain = (this.sideRoom.minMainWidth || leftMin);
 			var available = $(window).width();
 			if (this.curRoom.isSideRoom) {
 				// we're trying to focus a side room
@@ -1650,18 +1740,25 @@ $('head').append($link);
 			if (room.requestLeave && !room.requestLeave(e)) return false;
 			return this.removeRoom(id);
 		},
-		renameRoom: function (id, newid) {
+		renameRoom: function (id, newid, newtitle) {
+			var newtitle = newtitle || newid;
 			var room = this.rooms[id];
 			if (!room) return false;
 			if (this.rooms[newid]) {
 				this.removeRoom(id, true);
 				return false;
 			}
-			this.rooms[newid] = room;
 			room.id = newid;
+			room.title = newtitle;
 			room.$el[0].id = 'room-' + newid;
+			this.rooms[newid] = room;
 			delete this.rooms[id];
 			this.updateLayout();
+			this.topbar.updateTabbar();
+			if (this.rooms[newid] === this.curRoom) {
+				this.updateTitle(this.rooms[newid]);
+			}
+			this.updateAutojoin();
 		},
 		removeRoom: function (id, alreadyLeft) {
 			var room = this.rooms[id];
@@ -1718,12 +1815,12 @@ $('head').append($link);
 			}
 			return false;
 		},
-		focusRoomBy: function (room, amount) {
+		focusRoomBy: function (room, amount, focusTextbox) {
 			this.arrowKeysUsed = true;
 			var rooms = this.roomList.concat(this.sideRoomList);
 			if (room && room.id === 'rooms') {
 				if (!rooms.length) return false;
-				this.focusRoom(rooms[amount < 0 ? rooms.length - 1 : 0].id);
+				this.focusRoom(rooms[amount < 0 ? rooms.length - 1 : 0].id, focusTextbox);
 				return true;
 			}
 			var index = rooms.indexOf(room);
@@ -1733,7 +1830,7 @@ $('head').append($link);
 					this.joinRoom('rooms');
 					return true;
 				}
-				this.focusRoom(rooms[newIndex].id);
+				this.focusRoom(rooms[newIndex].id, focusTextbox);
 				return true;
 			}
 			return false;
@@ -1770,7 +1867,7 @@ $('head').append($link);
 				autojoinCount++;
 				if (autojoinCount >= 10) break;
 			}
-			var curAutojoin = (Tools.prefs('autojoin') || '');
+			var curAutojoin = (Dex.prefs('autojoin') || '');
 			if (typeof curAutojoin !== 'string') {
 				if (curAutojoin[Config.server.id] === autojoins.join(',')) return;
 				if (!autojoins.length) {
@@ -1797,7 +1894,7 @@ $('head').append($link);
 					curAutojoin = autojoins.join(',');
 				}
 			}
-			Tools.prefs('autojoin', curAutojoin);
+			Dex.prefs('autojoin', curAutojoin);
 		},
 
 		/*********************************************************
@@ -1888,7 +1985,7 @@ $('head').append($link);
 
 	});
 
-	var Room = this.Room = Backbone.View.extend({
+	this.Room = Backbone.View.extend({
 		className: 'ps-room',
 		constructor: function (options) {
 			if (!this.events) this.events = {};
@@ -2015,7 +2112,7 @@ $('head').append($link);
 						window.focus();
 						self.clickNotification(tag);
 					};
-					if (Tools.prefs('temporarynotifications')) {
+					if (Dex.prefs('temporarynotifications')) {
 						if (notification.cancel) {
 							setTimeout(function () {notification.cancel();}, 5000);
 						} else if (notification.close) {
@@ -2059,7 +2156,15 @@ $('head').append($link);
 			if (!tag) return this.closeAllNotifications();
 			if (window.nodewebkit) nwWindow.requestAttention(false);
 			if (!this.notifications || !this.notifications[tag]) return;
-			if (!alreadyClosed && this.notifications[tag].close) this.notifications[tag].close();
+			if (!alreadyClosed) {
+				try {
+					// Edge will expose a close function and crash when you try to use it
+					// It seems to be a permission error - sometimes it crashes, sometimes
+					// it doesn't.
+					// "Unexpected call to method or property access"
+					this.notifications[tag].close();
+				} catch (err) {}
+			}
 			delete this.notifications[tag];
 			if (_.isEmpty(this.notifications)) {
 				this.notifications = null;
@@ -2075,7 +2180,10 @@ $('head').append($link);
 			this.subtleNotification = false;
 			if (this.notifications) {
 				for (var tag in this.notifications) {
-					if (this.notifications[tag].close) this.notifications[tag].close();
+					try {
+						// Edge bug? - see closeNotification
+						this.notifications[tag].close();
+					} catch (err) {}
 				}
 				this.notifications = null;
 			}
@@ -2087,7 +2195,10 @@ $('head').append($link);
 			if (!tag) return this.dismissAllNotifications();
 			if (window.nodewebkit) nwWindow.requestAttention(false);
 			if (!this.notifications || !this.notifications[tag]) return;
-			if (this.notifications[tag].close) this.notifications[tag].close();
+			try {
+				// Edge bug? - see closeNotification
+				this.notifications[tag].close();
+			} catch (err) {}
 			if (!this.notifications || this.notifications[tag]) return; // avoid infinite recursion
 			if (this.notifications[tag].psAutoclose) {
 				delete this.notifications[tag];
@@ -2102,7 +2213,7 @@ $('head').append($link);
 
 			if (this.lastMessageDate) {
 				// Mark chat messages as read to avoid double-notifying on reload
-				var lastMessageDates = Tools.prefs('logtimes') || (Tools.prefs('logtimes', {}), Tools.prefs('logtimes'));
+				var lastMessageDates = Dex.prefs('logtimes') || (Dex.prefs('logtimes', {}), Dex.prefs('logtimes'));
 				if (!lastMessageDates[Config.server.id]) lastMessageDates[Config.server.id] = {};
 				lastMessageDates[Config.server.id][this.id] = this.lastMessageDate;
 				Storage.prefs.save();
@@ -2117,7 +2228,10 @@ $('head').append($link);
 			if (this.notifications) {
 				for (var tag in this.notifications) {
 					if (!this.notifications[tag].psAutoclose) continue;
-					if (this.notifications[tag].close) this.notifications[tag].close();
+					try {
+						// Edge bug? - see closeNotification
+						this.notifications[tag].close();
+					} catch (err) {}
 					delete this.notifications[tag];
 				}
 				if (!this.notifications || _.isEmpty(this.notifications)) {
@@ -2131,7 +2245,7 @@ $('head').append($link);
 
 			if (this.lastMessageDate) {
 				// Mark chat messages as read to avoid double-notifying on reload
-				var lastMessageDates = Tools.prefs('logtimes') || (Tools.prefs('logtimes', {}), Tools.prefs('logtimes'));
+				var lastMessageDates = Dex.prefs('logtimes') || (Dex.prefs('logtimes', {}), Dex.prefs('logtimes'));
 				if (!lastMessageDates[Config.server.id]) lastMessageDates[Config.server.id] = {};
 				lastMessageDates[Config.server.id][this.id] = this.lastMessageDate;
 				Storage.prefs.save();
@@ -2242,7 +2356,7 @@ $('head').append($link);
 		},
 		initialize: function (data) {
 			if (!this.type) this.type = 'semimodal';
-			this.$el.html('<form><p style="white-space:pre-wrap;word-wrap:break-word">' + (data.htmlMessage || Tools.parseMessage(data.message)) + '</p><p class="buttonbar">' + (data.buttons || '<button name="close" class="autofocus"><strong>OK</strong></button>') + '</p></form>').css('max-width', data.maxWidth || 480);
+			this.$el.html('<form><p style="white-space:pre-wrap;word-wrap:break-word">' + (data.htmlMessage || BattleLog.parseMessage(data.message)) + '</p><p class="buttonbar">' + (data.buttons || '<button name="close" class="autofocus"><strong>OK</strong></button>') + '</p></form>').css('max-width', data.maxWidth || 480);
 		},
 
 		dispatchClickButton: function (e) {
@@ -2295,7 +2409,7 @@ $('head').append($link);
 
 			var buf = '<form>';
 			buf += '<p><label class="label">' + data.message;
-			buf += '<input class="textbox autofocus" type="text" name="data" value="' + Tools.escapeHTML(data.value || '') + '" /></label></p>';
+			buf += '<input class="textbox autofocus" type="text" name="data" value="' + BattleLog.escapeHTML(data.value || '') + '" /></label></p>';
 			buf += '<p class="buttonbar"><button type="submit"><strong>' + data.button + '</strong></button> <button name="close">Cancel</button></p>';
 			buf += '</form>';
 
@@ -2313,38 +2427,38 @@ $('head').append($link);
 			type: 'leadership',
 			order: 10001
 		},
-		'#': {
-			name: "Room Owner (#)",
-			type: 'leadership',
-			order: 10002
-		},
 		'&': {
 			name: "Leader (&amp;)",
 			type: 'leadership',
+			order: 10002
+		},
+		'#': {
+			name: "Room Owner (#)",
+			type: 'leadership',
 			order: 10003
+		},
+		'\u2605': {
+			name: "Host (\u2605)",
+			type: 'staff',
+			order: 10004
 		},
 		'@': {
 			name: "Moderator (@)",
 			type: 'staff',
-			order: 10004
+			order: 10005
 		},
 		'%': {
 			name: "Driver (%)",
 			type: 'staff',
-			order: 10005
+			order: 10006
 		},
 		'*': {
 			name: "Bot (*)",
 			type: 'normal',
-			order: 10006
+			order: 10007
 		},
 		'\u2606': {
 			name: "Player (\u2606)",
-			type: 'normal',
-			order: 10007
-		},
-		'\u2605': {
-			name: "Player (\u2605)",
 			type: 'normal',
 			order: 10008
 		},
@@ -2376,9 +2490,8 @@ $('head').append($link);
 
 	var UserPopup = this.UserPopup = Popup.extend({
 		initialize: function (data) {
-			data.userid = toId(data.name);
+			data.userid = toID(data.name);
 			var name = data.name;
-			if (/[a-zA-Z0-9]/.test(name.charAt(0))) name = ' ' + name;
 			this.data = data = _.extend(data, UserPopup.dataCache[data.userid]);
 			data.name = name;
 			app.on('response:userdetails', this.update, this);
@@ -2392,14 +2505,16 @@ $('head').append($link);
 		update: function (data) {
 			if (data && data.userid === this.data.userid) {
 				data = _.extend(this.data, data);
-				UserPopup.dataCache[data.userid] = data;
+				// Don't cache the roomGroup
+				UserPopup.dataCache[data.userid] = _.clone(data);
+				delete UserPopup.dataCache[data.userid].roomGroup;
 			} else {
 				data = this.data;
 			}
 			var userid = data.userid;
 			var name = data.name;
 			var avatar = data.avatar || '';
-			var group = ((Config.groups[name.charAt(0)] || {}).name || '');
+			var group = ((Config.groups[data.roomGroup] || {}).name || '');
 			var globalgroup = ((Config.groups[(data.group || Config.defaultGroup || ' ')] || {}).name || '');
 			if (globalgroup) {
 				if (!group || group === globalgroup) {
@@ -2409,14 +2524,23 @@ $('head').append($link);
 					globalgroup = "Global " + globalgroup;
 				}
 			}
-			if (group || name.charAt(0) === ' ') name = name.substr(1);
 			var ownUserid = app.user.get('userid');
 
 			var buf = '<div class="userdetails">';
-			if (avatar) buf += '<img class="trainersprite' + (userid === ownUserid ? ' yours' : '') + '" src="' + Tools.resolveAvatar(avatar) + '" />';
-			buf += '<strong><a href="//pokemonshowdown.com/users/' + userid + '" target="_blank">' + Tools.escapeHTML(name) + '</a></strong><br />';
-			buf += '<small>' + (group || '&nbsp;') + '</small>';
-			if (globalgroup) buf += '<br /><small>' + globalgroup + '</small>';
+			if (avatar) buf += '<img class="trainersprite' + (userid === ownUserid ? ' yours' : '') + '" src="' + Dex.resolveAvatar(avatar) + '" />';
+			buf += '<strong><a href="//pokemonshowdown.com/users/' + userid + '" target="_blank">' + BattleLog.escapeHTML(name) + '</a></strong><br />';
+			var offline = data.rooms === false;
+			if (data.status || offline) {
+				var status = offline ? '(Offline)' : data.status.startsWith('!') ? data.status.slice(1) : data.status;
+				buf += '<span class="userstatus' + (offline ? ' offline' : '') + '">' + BattleLog.escapeHTML(status) + '<br /></span>';
+			}
+			if (group) {
+				buf += '<small class="usergroup roomgroup">' + group + '</small>';
+				if (globalgroup) buf += '<br />';
+			}
+			if (globalgroup) {
+				buf += '<small class="usergroup globalgroup">' + globalgroup + '</small>';
+			}
 			if (data.rooms) {
 				var battlebuf = '';
 				var chatbuf = '';
@@ -2432,7 +2556,7 @@ $('head').append($link);
 						var p1 = data.rooms[i].p1.substr(1);
 						var p2 = data.rooms[i].p2.substr(1);
 						var ownBattle = (ownUserid === toUserid(p1) || ownUserid === toUserid(p2));
-						var room = '<span title="' + (Tools.escapeHTML(p1) || '?') + ' v. ' + (Tools.escapeHTML(p2) || '?') + '">' + '<a href="' + app.root + roomid + '" class="ilink' + ((ownBattle || app.rooms[i]) ? ' yours' : '') + '">' + roomrank + roomid.substr(7) + '</a></span>';
+						var room = '<span title="' + (BattleLog.escapeHTML(p1) || '?') + ' v. ' + (BattleLog.escapeHTML(p2) || '?') + '">' + '<a href="' + app.root + roomid + '" class="ilink' + ((ownBattle || app.rooms[i]) ? ' yours' : '') + '">' + roomrank + roomid.substr(7) + '</a></span>';
 						if (data.rooms[i].isPrivate) {
 							if (!privatebuf) privatebuf = '<br /><em>Private rooms:</em> ';
 							else privatebuf += ', ';
@@ -2456,8 +2580,6 @@ $('head').append($link);
 					}
 				}
 				buf += '<small class="rooms">' + battlebuf + chatbuf + privatebuf + '</small>';
-			} else if (data.rooms === false) {
-				buf += '<strong class="offline">OFFLINE</strong>';
 			}
 			buf += '</div>';
 
@@ -2514,12 +2636,15 @@ $('head').append($link);
 
 	var UserOptionsPopup = this.UserOptions = Popup.extend({
 		initialize: function (data) {
-			this.name = data.name.substr(1);
+			this.name = data.name;
 			this.userid = data.userid;
 			this.update();
 		},
 		update: function () {
-			this.$el.html('<p><button name="toggleIgnoreUser">' + (app.ignore[this.userid] ? 'Unignore' : 'Ignore') + '</button></p>');
+			this.$el.html('<p><button name="toggleIgnoreUser">' + (app.ignore[this.userid] ? 'Unignore' : 'Ignore') + '</button></p><p><button name="report">Report</button></p>');
+		},
+		report: function () {
+			app.joinRoom('view-help-request-report-user-' + this.userid);
 		},
 		toggleIgnoreUser: function () {
 			var buf = "User '" + this.name + "'";
@@ -2532,7 +2657,7 @@ $('head').append($link);
 			}
 			var $pm = $('.pm-window-' + this.userid);
 			if ($pm.length && $pm.css('display') !== 'none') {
-				$pm.find('.inner').append('<div class="chat">' + Tools.escapeHTML(buf) + '</div>');
+				$pm.find('.inner').append('<div class="chat">' + BattleLog.escapeHTML(buf) + '</div>');
 			} else {
 				var room = (app.curRoom && app.curRoom.add ? app.curRoom : app.curSideRoom);
 				if (!room || !room.add) {
@@ -2581,15 +2706,16 @@ $('head').append($link);
 		}
 	});
 
-	var ProxyPopup = this.ProxyPopup = Popup.extend({
+	this.ProxyPopup = Popup.extend({
 		type: 'modal',
 		initialize: function (data) {
 			this.callback = data.callback;
 
 			var buf = '<form>';
-			buf += '<p>Because of the <a href="https://en.wikipedia.org/wiki/Same-origin_policy" target="_blank">same-origin policy</a>, some manual work is required to complete the requested action when using <code>testclient.html</code>.</p>';
+			buf += '<p>Because of <a href="https://en.wikipedia.org/wiki/Same-origin_policy" target="_blank">your browser\'s security restrictions</a> for <code>testclient.html</code>, we need to do this manually:</p>';
 			buf += '<iframe id="overlay_iframe" src="' + data.uri + '" style="width: 100%; height: 50px;" class="textbox"></iframe>';
 			buf += '<p>Please copy <strong>all the text</strong> from the box above and paste it in the box below.</p>';
+			buf += '<p>(You should probably <a href="https://github.com/smogon/pokemon-showdown-client#test-keys" target="_blank">set up</a> <code>config/testclient-key.js</code> so you don\'t have to do this every time.)</p>';
 			buf += '<p><label class="label" style="float: left;">Data from the box above:</label> <input style="width: 100%;" class="textbox autofocus" type="text" name="result" /></p>';
 			buf += '<p class="buttonbar"><button type="submit"><strong>Submit</strong></button> <button name="close">Cancel</button></p>';
 			buf += '</form>';
@@ -2609,7 +2735,7 @@ $('head').append($link);
 		initialize: function (data) {
 			var buf = '';
 			buf = '<p>Your replay has been uploaded! It\'s available at:</p>';
-			buf += '<p><a href="http://replay.pokemonshowdown.com/' + data.id + '" target="_blank">http://replay.pokemonshowdown.com/' + data.id + '</a></p>';
+			buf += '<p><a href="https://replay.pokemonshowdown.com/' + data.id + '" target="_blank" class="no-panel-intercept">https://replay.pokemonshowdown.com/' + data.id + '</a></p>';
 			buf += '<p><button class="autofocus" name="close">Close</button></p>';
 			this.$el.html(buf).css('max-width', 620);
 		},
@@ -2627,7 +2753,7 @@ $('head').append($link);
 			var warning = ('warning' in data);
 			var buf = '';
 			if (warning) {
-				buf += '<p><strong style="color:red">' + (Tools.escapeHTML(data.warning) || 'You have been warned for breaking the rules.') + '</strong></p>';
+				buf += '<p><strong style="color:red">' + (BattleLog.escapeHTML(data.warning) || 'You have been warned for breaking the rules.') + '</strong></p>';
 			}
 			buf += '<h2>Pok&eacute;mon Showdown Rules</h2>';
 			buf += '<b>Global</b><br /><br /><b>1.</b> Be nice to people. Respect people. Don\'t be rude or mean to people.<br /><br /><b>2.</b> Follow US laws (PS is based in the US). No porn (minors use PS), don\'t distribute pirated material, and don\'t slander others.<br /><br /><b>3.</b>&nbsp;No sex. Don\'t discuss anything sexually explicit, not even in private messages, not even if you\'re both adults.<br /><b></b><br /><b>4.</b>&nbsp;No cheating. Don\'t exploit bugs to gain an unfair advantage. Don\'t game the system (by intentionally losing against yourself or a friend in a ladder match, by timerstalling, etc). Don\'t impersonate staff if you\'re not.<br /><br /><b>5.</b> Moderators have discretion to punish any behaviour they deem inappropriate, whether or not it\'s on this list. If you disagree with a moderator ruling, appeal to a leader (a user with &amp; next to their name) or <a href="https://pokemonshowdown.com/appeal">Discipline Appeals</a>.<br /><br />(Note: The First Amendment does not apply to PS, since PS is not a government organization.)<br /><br />';

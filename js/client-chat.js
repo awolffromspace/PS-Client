@@ -26,9 +26,8 @@
 		},
 		updateUser: function () {
 			var name = app.user.get('name');
-			var userid = app.user.get('userid');
 			if (this.expired) {
-				this.$chatAdd.text(this.expired === true ? 'This room is expired' : this.expired);
+				this.$chatAdd.html(this.expired === true ? 'This room is expired' : BattleLog.sanitizeHTML(this.expired));
 				this.$chatbox = null;
 			} else if (!name) {
 				this.$chatAdd.html('Connecting...');
@@ -37,24 +36,55 @@
 				this.$chatAdd.html('<form><button name="login">Join chat</button></form>');
 				this.$chatbox = null;
 			} else {
-				this.$chatAdd.html('<form class="chatbox"><label style="' + hashColor(userid) + '">' + Tools.escapeHTML(name) + ':</label> <textarea class="textbox" type="text" size="70" autocomplete="off"></textarea></form>');
+				var color = app.user.get('away') ? 'color:#888;' : BattleLog.hashColor(app.user.get('userid'));
+				this.$chatAdd.html('<form class="chatbox"><label style="' + color + '">' + BattleLog.escapeHTML(name) + ':</label> <textarea class="textbox" type="text" size="70" autocomplete="off"></textarea></form>');
 				this.$chatbox = this.$chatAdd.find('textarea');
 				this.$chatbox.autoResize({
 					animate: false,
 					extraSpace: 0
 				});
-				if (this === app.curSideRoom || this === app.curRoom) {
+				if (document.activeElement.tagName.toLowerCase() !== 'textarea' && (this === app.curSideRoom || this === app.curRoom)) {
 					this.$chatbox.focus();
 				}
 			}
 		},
 
-		focus: function () {
-			if (this.$chatbox) {
-				this.$chatbox.focus();
-			} else {
-				this.$('button[name=login]').focus();
+		focus: function (e, focusTextbox) {
+			var target = e && e.target;
+			if (target && target.tagName === 'TEXTAREA') {
+				// this workaround works for iOS 12 but not iOS 13
+				/* if (window.isiOS) {
+					// iOS will not bring up a keyboard unless you manually blur and refocus
+					$(target).blur();
+					setTimeout(function () {
+						$(target).focus();
+					}, 0);
+				} */
+				return;
 			}
+			if (!this.$chatbox) {
+				this.$('button[name=login]').focus();
+				return;
+			}
+			if (focusTextbox || $(target).closest('.chat-log-add, .battle-log-add').length) {
+				this.$chatbox.focus();
+				return;
+			}
+
+			if (window.isiOS) {
+				// Preventing the on-screen keyboard leads to other bugs, so we have to
+				// avoid focusing the textbox altogether. Sorry, Bluetooth keyboard users!
+				return;
+			}
+			// this will prevent a on-screen keyboard from appearing (in Android and iOS,
+			// and hopefully also Windows and Chrome OS in tablet mode)
+			this.$chatbox.blur();
+			this.$chatbox[0].readOnly = true;
+			this.$chatbox.focus();
+			var chatbox = this.$chatbox[0];
+			setTimeout(function () {
+				chatbox.readOnly = false;
+			}, 0);
 		},
 
 		focusText: function () {
@@ -129,6 +159,11 @@
 					e.preventDefault();
 					e.stopPropagation();
 				}
+			} else if (e.keyCode === 192 && cmdKey) { // Ctrl + ` key
+				if (ConsoleRoom.toggleFormatChar(textbox, '`')) {
+					e.preventDefault();
+					e.stopPropagation();
+				}
 			} else if (e.keyCode === 33) { // Pg Up key
 				this.$chatFrame.scrollTop(this.$chatFrame.scrollTop() - this.$chatFrame.height() + 60);
 			} else if (e.keyCode === 34) { // Pg Dn key
@@ -169,8 +204,11 @@
 			if (e.currentTarget.className === 'userbutton username') {
 				position = 'right';
 			}
+			var roomGroup = $(e.currentTarget).data('roomgroup');
 			var name = $(e.currentTarget).data('name') || $(e.currentTarget).text();
-			app.addPopup(UserPopup, {name: name, sourceEl: e.currentTarget, position: position});
+			var away = $(e.currentTarget).data('away') || false;
+			var status = $(e.currentTarget).data('status');
+			app.addPopup(UserPopup, {roomGroup: roomGroup, name: name, away: away, status: status, sourceEl: e.currentTarget, position: position});
 		},
 		openPM: function (e) {
 			e.preventDefault();
@@ -200,7 +238,15 @@
 		// highlight
 
 		getHighlight: function (message) {
-			var highlights = Tools.prefs('highlights') || [];
+			var highlights = Dex.prefs('highlights') || {};
+			if (Array.isArray(highlights)) {
+				highlights = {global: highlights};
+				// Migrate from the old highlight system
+				Dex.prefs('highlights', highlights);
+			}
+			if (!Dex.prefs('noselfhighlight') && app.user.nameRegExp) {
+				if (app.user.nameRegExp.test(message)) return true;
+			}
 			if (!app.highlightRegExp) {
 				try {
 					this.updateHighlightRegExp(highlights);
@@ -212,17 +258,24 @@
 					return false;
 				}
 			}
-			if (!Tools.prefs('noselfhighlight') && app.user.nameRegExp) {
-				if (app.user.nameRegExp.test(message)) return true;
-			}
-			return ((highlights.length > 0) && app.highlightRegExp.test(message));
+			var id = Config.server.id + '#' + this.id;
+			var globalHighlightsRegExp = app.highlightRegExp['global'];
+			var roomHighlightsRegExp = app.highlightRegExp[id];
+			return (((globalHighlightsRegExp && globalHighlightsRegExp.test(message)) || (roomHighlightsRegExp && roomHighlightsRegExp.test(message))));
 		},
 		updateHighlightRegExp: function (highlights) {
 			// Enforce boundary for match sides, if a letter on match side is
 			// a word character. For example, regular expression "a" matches
 			// "a", but not "abc", while regular expression "!" matches
 			// "!" and "!abc".
-			app.highlightRegExp = new RegExp('(?:\\b|(?!\\w))(?:' + highlights.join('|') + ')(?:\\b|\\B(?!\\w))', 'i');
+			app.highlightRegExp = {};
+			for (var i in highlights) {
+				if (!highlights[i].length) {
+					app.highlightRegExp[i] = null;
+					continue;
+				}
+				app.highlightRegExp[i] = new RegExp('(?:\\b|(?!\\w))(?:' + highlights[i].join('|') + ')(?:\\b|(?!\\w))', 'i');
+			}
 		},
 
 		// chat history
@@ -299,7 +352,7 @@
 				if (!m1 && !m2) return true;
 
 				this.tabComplete.prefix = prefix;
-				var idprefix = (m1 ? toId(m1[2]) : '');
+				var idprefix = (m1 ? toID(m1[2]) : '');
 				var spaceprefix = (m2 ? m2[2].replace(/[^A-Za-z0-9 ]+/g, '').toLowerCase() : '');
 				var candidates = []; // array of [candidate userid, prefix length]
 
@@ -307,7 +360,7 @@
 				if (m2 && (m2[0] === '/' || m2[0] === '!')) spaceprefix = '';
 
 				for (var i in users) {
-					if (spaceprefix && users[i].substr(1).replace(/[^A-Za-z0-9 ]+/g, '').toLowerCase().substr(0, spaceprefix.length) === spaceprefix) {
+					if (spaceprefix && users[i].name.replace(/[^A-Za-z0-9 ]+/g, '').toLowerCase().substr(0, spaceprefix.length) === spaceprefix) {
 						candidates.push([i, m2[1].length]);
 					} else if (idprefix && i.substr(0, idprefix.length) === idprefix) {
 						candidates.push([i, m1[1].length]);
@@ -345,9 +398,10 @@
 			// Substitute in the tab-completed name.
 			var candidate = this.tabComplete.candidates[this.tabComplete.index];
 			var substituteUserId = candidate[0];
-			if (!users[substituteUserId]) return true;
-			var name = users[substituteUserId].substr(1);
-			name = Tools.getShortName(name);
+			var substituteUser = users[substituteUserId];
+			if (!substituteUser) return true;
+			var name = substituteUser.name;
+			name = Dex.getShortName(name);
 			var fullPrefix = this.tabComplete.prefix.substr(0, candidate[1]) + name;
 			$textbox.val(fullPrefix + text.substr(idx));
 			var pos = fullPrefix.length;
@@ -369,7 +423,7 @@
 			var cmd = '';
 			var target = '';
 			var noSpace = false;
-			if (text.substr(0, 2) !== '//' && text.charAt(0) === '/') {
+			if (text.substr(0, 2) !== '//' && text.charAt(0) === '/' || text.charAt(0) === '!') {
 				var spaceIndex = text.indexOf(' ');
 				if (spaceIndex > 0) {
 					cmd = text.substr(1, spaceIndex - 1);
@@ -382,6 +436,7 @@
 			}
 
 			switch (cmd.toLowerCase()) {
+			case 'chal':
 			case 'chall':
 			case 'challenge':
 				var targets = target.split(',');
@@ -391,7 +446,7 @@
 
 				var self = this;
 				var challenge = function (targets) {
-					target = toId(targets[0]);
+					target = toID(targets[0]);
 					self.challengeData = {userid: target, format: targets[1] || '', team: targets[2] || ''};
 					app.on('response:userdetails', self.challengeUserdetails, self);
 					app.send('/cmd userdetails ' + target);
@@ -408,7 +463,7 @@
 				return false;
 
 			case 'accept':
-				var userid = toId(target);
+				var userid = toID(target);
 				if (userid) {
 					var $challenge = $('.pm-window').filter('div[data-userid="' + userid + '"]').find('button[name="acceptChallenge"]');
 					if (!$challenge.length) {
@@ -433,7 +488,7 @@
 				$challenges[0].click();
 				return false;
 			case 'reject':
-				var userid = toId(target);
+				var userid = toID(target);
 				if (userid) {
 					var $challenge = $('.pm-window').filter('div[data-userid="' + userid + '"]').find('button[name="rejectChallenge"]');
 					if (!$challenge.length) {
@@ -475,15 +530,39 @@
 				openUser(target);
 				return false;
 
+			case 'pm':
+			case 'whisper':
+			case 'w':
+			case 'msg':
+				var commaIndex = target.indexOf(',');
+				if (commaIndex < 0) break;
+				if (!$.trim(target.slice(commaIndex + 1))) {
+					app.rooms[''].focusPM(target.slice(0, commaIndex));
+					return false;
+				}
+				break;
+
 			case 'debug':
 				if (target === 'extractteams') {
 					app.addPopup(Popup, {
 						type: 'modal',
-						htmlMessage: "Extracted team data:<br /><textarea rows=\"10\" cols=\"60\">" + Tools.escapeHTML(JSON.stringify(Storage.teams)) + "</textarea>"
+						htmlMessage: "Extracted team data:<br /><textarea rows=\"10\" cols=\"60\">" + BattleLog.escapeHTML(JSON.stringify(Storage.teams)) + "</textarea>"
 					});
+				} else if (target === 'nw') {
+					try {
+						nw.Window.get().showDevTools();
+					} catch (e) {
+						this.add('|error|' + e.message);
+					}
+				} else {
+					this.add('|error|Unknown debug command.');
+					this.add('|error|Are you looking for /showdebug and /hidedebug?');
 				}
 				return false;
 
+			case 'news':
+				app.rooms[''].addNews();
+				return false;
 			case 'autojoin':
 			case 'cmd':
 			case 'crq':
@@ -569,10 +648,9 @@
 			case 'logout':
 				app.user.logout();
 				return false;
-
 			case 'showdebug':
 				this.add('Debug battle messages: ON');
-				Tools.prefs('showdebug', true);
+				Dex.prefs('showdebug', true);
 				var debugStyle = $('#debugstyle').get(0);
 				var onCSS = '.debug {display: block;}';
 				if (!debugStyle) {
@@ -583,7 +661,7 @@
 				return false;
 			case 'hidedebug':
 				this.add('Debug battle messages: HIDDEN');
-				Tools.prefs('showdebug', false);
+				Dex.prefs('showdebug', false);
 				var debugStyle = $('#debugstyle').get(0);
 				var offCSS = '.debug {display: none;}';
 				if (!debugStyle) {
@@ -594,58 +672,58 @@
 				return false;
 
 			case 'showjoins':
-				var showjoins = Tools.prefs('showjoins') || {};
+				var showjoins = Dex.prefs('showjoins') || {};
 				var serverShowjoins = showjoins[Config.server.id] || {};
 				if (target) {
-					var room = toId(target);
+					var room = toID(target);
 					if (serverShowjoins['global']) {
 						delete serverShowjoins[room];
 					} else {
 						serverShowjoins[room] = 1;
 					}
-					this.add('Join/leave messages on room ' + room + ': ON');
+					this.add('Join/leave messages on room ' + room + ': ALWAYS ON');
 				} else {
 					serverShowjoins = {global: 1};
-					this.add('Join/leave messages: ON');
+					this.add('Join/leave messages: ALWAYS ON');
 				}
 				showjoins[Config.server.id] = serverShowjoins;
-				Tools.prefs('showjoins', showjoins);
+				Dex.prefs('showjoins', showjoins);
 				return false;
 			case 'hidejoins':
-				var showjoins = Tools.prefs('showjoins') || {};
+				var showjoins = Dex.prefs('showjoins') || {};
 				var serverShowjoins = showjoins[Config.server.id] || {};
 				if (target) {
-					var room = toId(target);
+					var room = toID(target);
 					if (!serverShowjoins['global']) {
 						delete serverShowjoins[room];
 					} else {
 						serverShowjoins[room] = 0;
 					}
-					this.add('Join/leave messages on room ' + room + ': HIDDEN');
+					this.add('Join/leave messages on room ' + room + ': AUTOMATIC');
 				} else {
 					serverShowjoins = {global: 0};
-					this.add('Join/leave messages: HIDDEN');
+					this.add('Join/leave messages: AUTOMATIC');
 				}
 				showjoins[Config.server.id] = serverShowjoins;
-				Tools.prefs('showjoins', showjoins);
+				Dex.prefs('showjoins', showjoins);
 				return false;
 
 			case 'showbattles':
 				this.add('Battle messages: ON');
-				Tools.prefs('showbattles', true);
+				Dex.prefs('showbattles', true);
 				return false;
 			case 'hidebattles':
 				this.add('Battle messages: HIDDEN');
-				Tools.prefs('showbattles', false);
+				Dex.prefs('showbattles', false);
 				return false;
 
 			case 'unpackhidden':
 				this.add('Locked/banned users\' chat messages: ON');
-				Tools.prefs('nounlink', true);
+				Dex.prefs('nounlink', true);
 				return false;
 			case 'packhidden':
 				this.add('Locked/banned users\' chat messages: HIDDEN');
-				Tools.prefs('nounlink', false);
+				Dex.prefs('nounlink', false);
 				return false;
 
 			case 'timestamps':
@@ -656,7 +734,7 @@
 					this.parseCommand('/help timestamps'); // show help
 					return false;
 				}
-				var timestamps = Tools.prefs('timestamps') || {};
+				var timestamps = Dex.prefs('timestamps') || {};
 				if (typeof timestamps === 'string') {
 					// The previous has a timestamps preference from the previous
 					// regime. We can't set properties of a string, so set it to
@@ -676,12 +754,12 @@
 					break;
 				}
 				this.add("Timestamps preference set to: '" + targets[1] + "' for '" + targets[0] + "'.");
-				Tools.prefs('timestamps', timestamps);
+				Dex.prefs('timestamps', timestamps);
 				return false;
 
 			case 'hl':
 			case 'highlight':
-				var highlights = Tools.prefs('highlights') || [];
+				var highlights = Dex.prefs('highlights') || {};
 				if (target.indexOf(',') > -1) {
 					var targets = target.match(/([^,]+?({\d*,\d*})?)+/g);
 					// trim the targets to be safe
@@ -689,7 +767,9 @@
 						targets[i] = targets[i].replace(/\n/g, '').trim();
 					}
 					switch (targets[0]) {
-					case 'add':
+					case 'add': case 'roomadd':
+						var key = targets[0] === 'roomadd' ? (Config.server.id + '#' + this.id) : 'global';
+						var highlightList = highlights[key] || [];
 						for (var i = 1, len = targets.length; i < len; i++) {
 							if (!targets[i]) continue;
 							if (/[\\^$*+?()|{}[\]]/.test(targets[i])) {
@@ -700,24 +780,26 @@
 									return this.add(e.message.substr(0, 28) === 'Invalid regular expression: ' ? e.message : 'Invalid regular expression: /' + targets[i] + '/: ' + e.message);
 								}
 							}
-							if (highlights.indexOf(targets[i]) > -1) {
+							if (highlightList.indexOf(targets[i]) > -1) {
 								return this.add(targets[i] + ' is already on your highlights list.');
 							}
 						}
-						highlights = highlights.concat(targets.slice(1));
-						this.add("Now highlighting on: " + highlights.join(', '));
+						highlights[key] = highlightList.concat(targets.slice(1));
+						this.add("Now highlighting on " + (key === 'global' ? "(everywhere): " : "(in " + key + "): ") + highlights[key].join(', '));
 						// We update the regex
 						this.updateHighlightRegExp(highlights);
 						break;
-					case 'delete':
+					case 'delete': case 'roomdelete':
+						var key = targets[0] === 'roomdelete' ? (Config.server.id + '#' + this.id) : 'global';
+						var highlightList = highlights[key] || [];
 						var newHls = [];
-						for (var i = 0, len = highlights.length; i < len; i++) {
-							if (targets.indexOf(highlights[i]) === -1) {
-								newHls.push(highlights[i]);
+						for (var i = 0, len = highlightList.length; i < len; i++) {
+							if (targets.indexOf(highlightList[i]) === -1) {
+								newHls.push(highlightList[i]);
 							}
 						}
-						highlights = newHls;
-						this.add("Now highlighting on: " + highlights.join(', '));
+						highlights[key] = newHls;
+						this.add("Now highlighting on " + (key === 'global' ? "(everywhere): " : "(in " + key + "): ") + highlights[key].join(', '));
 						// We update the regex
 						this.updateHighlightRegExp(highlights);
 						break;
@@ -727,17 +809,19 @@
 						this.parseCommand('/help highlight'); // show help
 						return false;
 					}
-					Tools.prefs('highlights', highlights);
+					Dex.prefs('highlights', highlights);
 				} else {
 					if (target === 'delete') {
-						Tools.prefs('highlights', false);
+						Dex.prefs('highlights', false);
+						this.updateHighlightRegExp({});
 						this.add("All highlights cleared");
-					} else if (target === 'show' || target === 'list') {
+					} else if (['show', 'list', 'roomshow', 'roomlist'].includes(target)) {
 						// Shows a list of the current highlighting words
-						if (highlights.length > 0) {
-							this.add("Current highlight list: " + highlights.join(", "));
+						var key = target.startsWith('room') ? (Config.server.id + '#' + this.id) : 'global';
+						if (highlights[key] && highlights[key].length > 0) {
+							this.add("Current highlight list " + (key === 'global' ? "(everywhere): " : "(in " + key + "): ") + highlights[key].join(", "));
 						} else {
-							this.add('Your highlight list is empty.');
+							this.add('Your highlight list' + (key === 'global' ? '' : ' in ' + this.id) + ' is empty.');
 						}
 					} else {
 						// Wrong command
@@ -753,7 +837,12 @@
 			case 'rating':
 			case 'ladder':
 				if (app.localLadder) return text;
-				if (!target) target = app.user.get('userid');
+				if (!target) {
+					target = app.user.get('userid');
+				}
+				if (this.battle && !target.includes(',')) {
+					target += ", " + this.id.split('-')[1];
+				}
 
 				var targets = target.split(',');
 				var formatTargeting = false;
@@ -764,7 +853,7 @@
 					if (targets[i].length === 4 && targets[i].substr(0, 3) === 'gen') {
 						gens[targets[i]] = 1;
 					} else {
-						formats[toId(targets[i])] = 1;
+						formats[toID(targets[i])] = 1;
 					}
 					formatTargeting = true;
 				}
@@ -773,7 +862,7 @@
 				$.get(app.user.getActionPHP(), {
 					act: 'ladderget',
 					user: targets[0]
-				}, Tools.safeJSON(function (data) {
+				}, Storage.safeJSON(function (data) {
 					if (!data || !$.isArray(data)) return self.add('|raw|Error: corrupted ranking data');
 					var buffer = '<div class="ladder"><table><tr><td colspan="8">User: <strong>' + toName(targets[0]) + '</strong></td></tr>';
 					if (!data.length) {
@@ -787,12 +876,12 @@
 					for (var i = 0; i < data.length; i++) {
 						var row = data[i];
 						if (!row) return self.add('|raw|Error: corrupted ranking data');
-						var formatId = toId(row.formatid);
+						var formatId = toID(row.formatid);
 						if (!formatTargeting || formats[formatId] || gens[formatId.slice(0, 4)] || (gens['gen6'] && formatId.substr(0, 3) !== 'gen')) {
 							buffer += '<tr>';
 						} else {
 							buffer += '<tr class="hidden">';
-							hiddenFormats.push(Tools.escapeFormat(formatId));
+							hiddenFormats.push(BattleLog.escapeFormat(formatId));
 						}
 
 						// Validate all the numerical data
@@ -801,7 +890,7 @@
 							if (typeof values[j] !== 'number' && typeof values[j] !== 'string' || isNaN(values[j])) return self.add('|raw|Error: corrupted ranking data');
 						}
 
-						buffer += '<td>' + Tools.escapeFormat(formatId) + '</td><td><strong>' + Math.round(row.elo) + '</strong></td>';
+						buffer += '<td>' + BattleLog.escapeFormat(formatId) + '</td><td><strong>' + Math.round(row.elo) + '</strong></td>';
 						if (row.rprd > 100) {
 							// High rating deviation. Provisional rating.
 							buffer += '<td>&ndash;</td>';
@@ -816,11 +905,11 @@
 					}
 					if (hiddenFormats.length) {
 						if (hiddenFormats.length === data.length) {
-							buffer += '<tr class="no-matches"><td colspan="6"><em>This user has not played any ladder games that match the format targeting.</em></td></tr>';
+							buffer += '<tr class="no-matches"><td colspan="8"><em>This user has not played any ladder games that match "' + BattleLog.escapeHTML(Object.keys(gens).concat(Object.keys(formats)).join(', ')) + '".</em></td></tr>';
 						}
 						buffer += '<tr><td colspan="8"><button name="showOtherFormats">' + hiddenFormats.slice(0, 3).join(', ') + (hiddenFormats.length > 3 ? ' and ' + (hiddenFormats.length - 3) + ' other formats' : '') + ' not shown</button></td></tr>';
 					}
-					var userid = toId(targets[0]);
+					var userid = toID(targets[0]);
 					var registered = app.user.get('registered');
 					if (registered && registered.userid === userid) {
 						buffer += '<tr><td colspan="8" style="text-align:right"><a href="//pokemonshowdown.com/users/' + userid + '">Reset W/L</a></tr></td>';
@@ -860,14 +949,13 @@
 			case 'join':
 			case 'j':
 				if (noSpace) return text;
-				var room = toRoomid(target);
 				if (app.rooms[target]) {
 					app.focusRoom(target);
 					return false;
 				}
-				room = toId(target);
-				if (app.rooms[room]) {
-					app.focusRoom(room);
+				var roomid = toID(target);
+				if (app.rooms[roomid]) {
+					app.focusRoom(roomid);
 					return false;
 				}
 				return text; // Send the /join command through to the server.
@@ -879,18 +967,44 @@
 
 			case 'avatar':
 				var parts = target.split(',');
-				var avatarString = toId(parts[0]);
-				var avatar = parseInt(avatarString, 10);
-				if (avatar) {
-					Tools.prefs('avatar', avatar);
-				} else if (['bw2elesa', 'teamrocket', 'yellow', 'zinnia', 'clemont'].indexOf(avatarString) > -1) { // custom avatar exceptions
-					Tools.prefs('avatar', '#' + avatarString);
+				var avatar = parts[0].toLowerCase().replace(/[^a-z0-9-]+/g, '');
+				// Replace avatar number with name before sending it to the server, only the client knows what to do with the numbers
+				if (window.BattleAvatarNumbers && Object.prototype.hasOwnProperty.call(window.BattleAvatarNumbers, avatar)) {
+					avatar = window.BattleAvatarNumbers[avatar];
 				}
-				return text; // Send the /avatar command through to the server.
+				Dex.prefs('avatar', avatar);
+				return '/avatar ' + avatar; // Send the command through to the server.
+
+			case 'afd':
+				var cleanedTarget = toID(target);
+				if (cleanedTarget === 'off' || cleanedTarget === 'disable') {
+					Config.server.afd = false;
+					if (typeof BattleTextNotAFD !== 'undefined') BattleText = BattleTextNotAFD;
+					this.add('April Fools\' day mode disabled.');
+				} else {
+					Config.server.afd = true;
+					if (typeof BattleTextAFD !== 'undefined') BattleText = BattleTextAFD;
+					this.add('April Fools\' day mode enabled.');
+				}
+				for (var roomid in app.rooms) {
+					var battle = app.rooms[roomid] && app.rooms[roomid].battle;
+					if (!battle) continue;
+					var turn = battle.turn;
+					var oldState = battle.playbackState;
+					if (oldState === 4) turn = -1;
+					battle.reset(true);
+					battle.fastForwardTo(turn);
+					if (oldState !== 3) {
+						battle.play();
+					} else {
+						battle.pause();
+					}
+				}
+				return false;
 
 			// documentation of client commands
 			case 'help':
-				switch (toId(target)) {
+				switch (toID(target)) {
 				case 'challenge':
 					this.add('/challenge - Open a prompt to challenge a user to a battle.');
 					this.add('/challenge [user] - Challenge the user [user] to a battle.');
@@ -906,6 +1020,9 @@
 				case 'user':
 				case 'open':
 					this.add('/user [user] - Open a popup containing the user [user]\'s avatar, name, rank, and chatroom list.');
+					return false;
+				case 'news':
+					this.add('/news - Opens a popup containing the news.');
 					return false;
 				case 'ignore':
 				case 'unignore':
@@ -951,8 +1068,11 @@
 				case 'hl':
 					this.add('Set up highlights:');
 					this.add('/highlight add, [word] - Add the word [word] to the highlight list.');
+					this.add('/highlight roomadd, [word] - Add the word [word] to the highlight list of whichever room you used the command in.');
 					this.add('/highlight list - List all words that currently highlight you.');
-					this.add('/highlight delete, [word] - Delete the word [word] from the highlight list.');
+					this.add('/highlight roomlist - List all words that currently highlight you in whichever room you used the command in.');
+					this.add('/highlight delete, [word] - Delete the word [word] from your entire highlight list.');
+					this.add('/highlight roomdelete, [word] - Delete the word [word] from the highlight list of whichever room you used the command in.');
 					this.add('/highlight delete - Clear the highlight list.');
 					return false;
 				case 'rank':
@@ -961,6 +1081,10 @@
 				case 'ladder':
 					this.add('/rating - Get your own rating.');
 					this.add('/rating [username] - Get user [username]\'s rating.');
+					return false;
+				case 'afd':
+					this.add('/afd - Enable April Fools\' Day sprites.');
+					this.add('/afd disable - Disable April Fools\' Day sprites.');
 					return false;
 				}
 			}
@@ -972,7 +1096,7 @@
 		challengeUserdetails: function (data) {
 			app.off('response:userdetails', this.challengeUserdetails);
 
-			if (!data || this.challengeData.userid !== data.userid) return;
+			if (!data) return;
 
 			if (data.rooms === false) {
 				this.add('This player does not exist or is not online.');
@@ -980,7 +1104,8 @@
 			}
 
 			app.focusRoom('');
-			var name = data.name || this.challengeData.userid;
+			// if foe has changed name, challengeData.userid will be wrong, so defer to data
+			var name = data.name || data.userid;
 			if (/^[a-z0-9]/i.test(name)) name = ' ' + name;
 			app.rooms[''].challenge(name, this.challengeData.format, this.challengeData.team);
 		},
@@ -1056,7 +1181,7 @@
 		maxWidth: 1024,
 		isSideRoom: true,
 		initialize: function () {
-			var buf = '<div class="tournament-wrapper"></div><div class="chat-log"><div class="inner" role="log"></div></div></div><div class="chat-log-add">Connecting...</div><ul class="userlist"></ul>';
+			var buf = '<div class="tournament-wrapper"></div><div class="chat-log"><div class="inner message-log" role="log"></div></div></div><div class="chat-log-add">Connecting...</div><ul class="userlist"></ul>';
 			this.$el.addClass('ps-room-light').html(buf);
 
 			this.$chatAdd = this.$('.chat-log-add');
@@ -1108,6 +1233,13 @@
 			app.send('/leave ' + this.id);
 			app.updateAutojoin();
 		},
+		requestLeave: function (e) {
+			if (app.rooms[''].games && app.rooms[''].games[this.id]) {
+				app.addPopup(ForfeitPopup, {room: this, sourceEl: e && e.currentTarget, gameType: (this.id.substring(0, 5) === 'help-' ? 'help' : 'game')});
+				return false;
+			}
+			return true;
+		},
 		receive: function (data) {
 			this.add(data);
 		},
@@ -1139,16 +1271,16 @@
 			if (this.$chatFrame.scrollTop() + 60 >= this.$chat.height() - this.$chatFrame.height()) {
 				autoscroll = true;
 			}
-			if (!(message.substr(0, 4) === '/raw' || message.substr(0, 5) === '/html')) this.addChat(user, message, pm);
+			if (!(message.substr(0, 4) === '/raw' || message.substr(0, 5) === '/html' || message.substr(0, 6) === '/uhtml' || message.substr(0, 12) === '/uhtmlchange')) this.addChat(user, message, pm);
 			if (autoscroll) {
 				this.$chatFrame.scrollTop(this.$chat.height());
 			}
-			if (!app.focused && !Tools.prefs('mute') && Tools.prefs('notifvolume')) {
-				soundManager.getSoundById('notif').setVolume(Tools.prefs('notifvolume')).play();
+			if (!app.focused && !Dex.prefs('mute') && Dex.prefs('notifvolume')) {
+				soundManager.getSoundById('notif').setVolume(Dex.prefs('notifvolume')).play();
 			}
 		},
 		addRow: function (line) {
-			var name, name2, room, action, silent, oldid;
+			var name, name2, silent;
 			if (line && typeof line === 'string') {
 				if (line.charAt(0) !== '|') line = '||' + line;
 				var row = line.substr(1).split('|');
@@ -1195,9 +1327,9 @@
 					if (!matches) {
 						return; // bogus room ID could be used to inject JavaScript
 					}
-					var format = Tools.escapeFormat(matches ? matches[1] : '');
+					var format = BattleLog.escapeFormat(matches[1]);
 
-					if (silent && !Tools.prefs('showbattles')) return;
+					if (silent && !Dex.prefs('showbattles')) return;
 
 					this.addJoinLeave();
 					var battletype = 'Battle';
@@ -1205,7 +1337,7 @@
 						battletype = format + ' battle';
 						if (format === 'Random Battle') battletype = 'Random Battle';
 					}
-					this.$chat.append('<div class="notice"><a href="' + app.root + id + '" class="ilink">' + battletype + ' started between <strong style="' + hashColor(toUserid(name)) + '">' + Tools.escapeHTML(name) + '</strong> and <strong style="' + hashColor(toUserid(name2)) + '">' + Tools.escapeHTML(name2) + '</strong>.</a></div>');
+					this.$chat.append('<div class="notice"><a href="' + app.root + id + '" class="ilink">' + battletype + ' started between <strong style="' + BattleLog.hashColor(toUserid(name)) + '">' + BattleLog.escapeHTML(name) + '</strong> and <strong style="' + BattleLog.hashColor(toUserid(name2)) + '">' + BattleLog.escapeHTML(name2) + '</strong>.</a></div>');
 					break;
 
 				case 'j':
@@ -1245,23 +1377,25 @@
 
 				case 'raw':
 				case 'html':
-					this.$chat.append('<div class="notice">' + Tools.sanitizeHTML(row.slice(1).join('|')) + '</div>');
+					this.$chat.append('<div class="notice">' + BattleLog.sanitizeHTML(row.slice(1).join('|')) + '</div>');
 					break;
 
 				case 'notify':
 					if (row[3] && !this.getHighlight(row[3])) return;
-					if (!Tools.prefs('mute') && Tools.prefs('notifvolume')) {
-						soundManager.getSoundById('notif').setVolume(Tools.prefs('notifvolume')).play();
+					if (!Dex.prefs('mute') && Dex.prefs('notifvolume')) {
+						soundManager.getSoundById('notif').setVolume(Dex.prefs('notifvolume')).play();
 					}
 					this.notifyOnce(row[1], row[2], 'highlight');
 					break;
 
 				case 'tempnotify':
+					var notifyOnce = row[4] !== '!';
+					if (!notifyOnce) row[4] = '';
 					if (row[4] && !this.getHighlight(row[4])) return;
-					if (!this.notifications && !Tools.prefs('mute') && Tools.prefs('notifvolume')) {
-						soundManager.getSoundById('notif').setVolume(Tools.prefs('notifvolume')).play();
+					if (!this.notifications && !Dex.prefs('mute') && Dex.prefs('notifvolume')) {
+						soundManager.getSoundById('notif').setVolume(Dex.prefs('notifvolume')).play();
 					}
-					this.notify(row[2], row[3], row[1]);
+					this.notify(row[2], row[3], row[1], notifyOnce);
 					break;
 
 				case 'tempnotifyoff':
@@ -1269,30 +1403,34 @@
 					break;
 
 				case 'error':
-					this.$chat.append('<div class="notice message-error">' + Tools.escapeHTML(row.slice(1).join('|')) + '</div>');
+					this.$chat.append('<div class="notice message-error">' + BattleLog.escapeHTML(row.slice(1).join('|')) + '</div>');
 					break;
 
 				case 'uhtml':
 				case 'uhtmlchange':
-					var $elements = this.$chat.find('div.uhtml-' + toId(row[1]));
+					var $elements = this.$chat.find('div.uhtml-' + toID(row[1]));
 					var html = row.slice(2).join('|');
 					if (!html) {
 						$elements.remove();
 					} else if (!$elements.length) {
-						this.$chat.append('<div class="notice uhtml-' + toId(row[1]) + '">' + Tools.sanitizeHTML(html) + '</div>');
+						if (row[0] === 'uhtmlchange') {
+							this.$chat.prepend('<div class="notice uhtml-' + toID(row[1]) + '">' + BattleLog.sanitizeHTML(html) + '</div>');
+						} else {
+							this.$chat.append('<div class="notice uhtml-' + toID(row[1]) + '">' + BattleLog.sanitizeHTML(html) + '</div>');
+						}
 					} else if (row[0] === 'uhtmlchange') {
-						$elements.html(Tools.sanitizeHTML(html));
+						$elements.html(BattleLog.sanitizeHTML(html));
 					} else {
 						$elements.remove();
-						this.$chat.append('<div class="notice uhtml-' + toId(row[1]) + '">' + Tools.sanitizeHTML(html) + '</div>');
+						this.$chat.append('<div class="notice uhtml-' + toID(row[1]) + '">' + BattleLog.sanitizeHTML(html) + '</div>');
 					}
 					break;
 
 				case 'unlink':
 					// note: this message has global effects, but it's handled here
 					// so that it can be included in the scrollback buffer.
-					if (Tools.prefs('nounlink')) return;
-					var user = toId(row[2]) || toId(row[1]);
+					if (Dex.prefs('nounlink')) return;
+					var user = toID(row[2]) || toID(row[1]);
 					var $messages = $('.chatmessage-' + user);
 					if (!$messages.length) break;
 					$messages.find('a').contents().unwrap();
@@ -1302,6 +1440,8 @@
 						// but it's now always applied
 						$messages = this.$chat.find('.chatmessage-' + user);
 						if (!$messages.length) break;
+						var lineCount = parseInt(row[3], 10) || 0;
+						if (lineCount) $messages = $messages.slice(-lineCount);
 						$messages.hide().addClass('revealed').find('button').parent().remove();
 						this.$chat.children().last().append(' <button name="toggleMessages" value="' + user + '" class="subtle"><small>(' + $messages.length + ' line' + ($messages.length > 1 ? 's' : '') + ' from ' + user + ' hidden)</small></button>');
 					}
@@ -1309,9 +1449,9 @@
 
 				case 'tournament':
 				case 'tournaments':
-					if (Tools.prefs('notournaments')) {
+					if (Dex.prefs('tournaments') === 'hide') {
 						if (row[1] === 'create') {
-							this.$chat.append('<div class="notice">' + Tools.escapeFormat(row[2]) + ' ' + Tools.escapeHTML(row[3]) + ' tournament created (and hidden because you have tournaments disabled).</div>');
+							this.$chat.append('<div class="notice">' + BattleLog.escapeFormat(row[2]) + ' ' + BattleLog.escapeHTML(row[3]) + ' tournament created (and hidden because you have tournaments disabled).</div>');
 						} else if (row[1] === 'start') {
 							this.$chat.append('<div class="notice">Tournament started.</div>');
 						} else if (row[1] === 'forceend') {
@@ -1326,11 +1466,11 @@
 					// fallthrough in case of unparsed message
 
 				case '':
-					this.$chat.append('<div class="notice">' + Tools.escapeHTML(row.slice(1).join('|')) + '</div>');
+					this.$chat.append('<div class="notice">' + BattleLog.escapeHTML(row.slice(1).join('|')) + '</div>');
 					break;
 
 				default:
-					this.$chat.append('<div class="notice"><code>|' + Tools.escapeHTML(row.join('|')) + '</code></div>');
+					this.$chat.append('<div class="notice"><code>|' + BattleLog.escapeHTML(row.join('|')) + '</code></div>');
 					break;
 				}
 			}
@@ -1357,7 +1497,10 @@
 				this.userCount.users = parseInt(userList.substr(0, commaIndex), 10);
 				var users = userList.substr(commaIndex + 1).split(',');
 				for (var i = 0, len = users.length; i < len; i++) {
-					if (users[i]) this.users[toId(users[i])] = users[i];
+					if (users[i]) {
+						var user = BattleTextParser.parseNameParts(users[i]);
+						this.users[toUserid(user.name)] = user;
+					}
 				}
 			} else {
 				this.userCount.users = parseInt(userList, 10);
@@ -1366,7 +1509,6 @@
 			this.userList.construct();
 		},
 		addJoinLeave: function (action, name, oldid, silent) {
-			var userid = toUserid(name);
 			if (!action) {
 				this.$joinLeave = null;
 				this.joinLeave = {
@@ -1374,10 +1516,13 @@
 					'leave': []
 				};
 				return;
-			} else if (action === 'join') {
+			}
+			var user = BattleTextParser.parseNameParts(name);
+			var userid = toUserid(user.name);
+			if (action === 'join') {
 				if (oldid) delete this.users[toUserid(oldid)];
 				if (!this.users[userid]) this.userCount.users++;
-				this.users[userid] = name;
+				this.users[userid] = user;
 				this.userList.add(userid);
 				this.userList.updateUserCount();
 				this.userList.updateNoUsersOnline();
@@ -1389,12 +1534,12 @@
 				this.userList.updateNoUsersOnline();
 			} else if (action === 'rename') {
 				if (oldid) delete this.users[toUserid(oldid)];
-				this.users[userid] = name;
+				this.users[userid] = user;
 				this.userList.remove(oldid);
 				this.userList.add(userid);
 				return;
 			}
-			var allShowjoins = Tools.prefs('showjoins') || {};
+			var allShowjoins = Dex.prefs('showjoins') || {};
 			var showjoins = allShowjoins[Config.server.id];
 			if (silent && (!showjoins || (!showjoins['global'] && !showjoins[this.id]) || showjoins[this.id] === 0)) {
 				return;
@@ -1403,70 +1548,49 @@
 				this.$chat.append('<div class="message"><small>Loading...</small></div>');
 				this.$joinLeave = this.$chat.children().last();
 			}
-			this.joinLeave[action].push(name);
+			this.joinLeave[action].push(user.group + user.name);
 			var message = '';
 			if (this.joinLeave['join'].length) {
-				var preList = this.joinLeave['join'];
-				var list = [];
-				var named = {};
-				for (var j = 0; j < preList.length; j++) {
-					if (!named[preList[j]]) list.push(preList[j]);
-					named[preList[j]] = true;
-				}
-				for (var j = 0; j < list.length; j++) {
-					if (j >= 5) {
-						message += ', and ' + (list.length - 5) + ' others';
-						break;
-					}
-					if (j > 0) {
-						if (j == 1 && list.length == 2) {
-							message += ' and ';
-						} else if (j == list.length - 1) {
-							message += ', and ';
-						} else {
-							message += ', ';
-						}
-					}
-					message += Tools.escapeHTML(list[j]);
-				}
-				message += ' joined';
+				message += this.displayJoinLeaves(this.joinLeave['join'], 'joined');
 			}
 			if (this.joinLeave['leave'].length) {
-				if (this.joinLeave['join'].length) {
-					message += '; ';
-				}
-				var preList = this.joinLeave['leave'];
-				var list = [];
-				var named = {};
-				for (var j = 0; j < preList.length; j++) {
-					if (!named[preList[j]]) list.push(preList[j]);
-					named[preList[j]] = true;
-				}
-				for (var j = 0; j < list.length; j++) {
-					if (j >= 5) {
-						message += ', and ' + (list.length - 5) + ' others';
-						break;
-					}
-					if (j > 0) {
-						if (j == 1 && list.length == 2) {
-							message += ' and ';
-						} else if (j == list.length - 1) {
-							message += ', and ';
-						} else {
-							message += ', ';
-						}
-					}
-					message += Tools.escapeHTML(list[j]);
-				}
-				message += ' left<br />';
+				if (this.joinLeave['join'].length) message += '; ';
+				message += this.displayJoinLeaves(this.joinLeave['leave'], 'left') + '<br />';
 			}
 			this.$joinLeave.html('<small style="color: #555555">' + message + '</small>');
+		},
+		displayJoinLeaves: function (preList, action) {
+			var message = '';
+			var list = [];
+			var named = {};
+			for (var j = 0; j < preList.length; j++) {
+				if (!named[preList[j]]) list.push(preList[j]);
+				named[preList[j]] = true;
+			}
+			for (var j = 0; j < list.length; j++) {
+				if (j >= 5) {
+					message += ', and ' + (list.length - 5) + ' others';
+					break;
+				}
+				if (j > 0) {
+					if (j == 1 && list.length == 2) {
+						message += ' and ';
+					} else if (j == list.length - 1) {
+						message += ', and ';
+					} else {
+						message += ', ';
+					}
+				}
+				message += BattleLog.escapeHTML(list[j]);
+			}
+			return message + ' ' + action;
 		},
 		addChat: function (name, message, pm, msgTime) {
 			var userid = toUserid(name);
 
 			var speakerHasAuth = " +\u2606".indexOf(name.charAt(0)) < 0;
-			var readerHasAuth = this.users && " +\u2606".indexOf((this.users[app.user.get('userid')] || ' ').charAt(0)) < 0;
+			var user = (this.users && this.users[app.user.get('userid')]) || {};
+			var readerHasAuth = !" +\u2606\u203D!".includes(user.group || ' ');
 			if (app.ignore[userid] && !speakerHasAuth && !readerHasAuth) return;
 
 			// Add this user to the list of people who have spoken recently.
@@ -1481,17 +1605,17 @@
 			if (pm) {
 				var pmuserid = toUserid(pm);
 				var oName = pmuserid === app.user.get('userid') ? name : pm;
-				var clickableName = '<span class="username" data-name="' + Tools.escapeHTML(name) + '">' + Tools.escapeHTML(name.substr(1)) + '</span>';
+				var clickableName = '<span class="username" data-name="' + BattleLog.escapeHTML(name) + '">' + BattleLog.escapeHTML(name.substr(1)) + '</span>';
 				this.$chat.append(
-					'<div class="chat chatmessage-' + toId(name) + '">' + ChatRoom.getTimestamp('lobby', msgTime) +
-					'<strong style="' + hashColor(userid) + '">' + clickableName + ':</strong>' +
-					'<span class="message-pm"><i class="pmnote" data-name="' + Tools.escapeHTML(oName) + '">(Private to ' + Tools.escapeHTML(pm) + ')</i> ' + Tools.parseMessage(message) + '</span>' +
+					'<div class="chat chatmessage-' + toID(name) + '">' + ChatRoom.getTimestamp('lobby', msgTime) +
+					'<strong style="' + BattleLog.hashColor(userid) + '">' + clickableName + ':</strong>' +
+					'<span class="message-pm"><i class="pmnote" data-name="' + BattleLog.escapeHTML(oName) + '">(Private to ' + BattleLog.escapeHTML(pm) + ')</i> ' + BattleLog.parseMessage(message) + '</span>' +
 					'</div>'
 				);
 				return; // PMs independently notify in the main menu; no need to make them notify again with `inchatpm`.
 			}
 
-			var lastMessageDates = Tools.prefs('logtimes') || (Tools.prefs('logtimes', {}), Tools.prefs('logtimes'));
+			var lastMessageDates = Dex.prefs('logtimes') || (Dex.prefs('logtimes', {}), Dex.prefs('logtimes'));
 			if (!lastMessageDates[Config.server.id]) lastMessageDates[Config.server.id] = {};
 			var lastMessageDate = lastMessageDates[Config.server.id][this.id] || 0;
 			// because the time offset to the server can vary slightly, subtract it to not have it affect comparisons between dates
@@ -1508,7 +1632,11 @@
 			}
 
 			var isHighlighted = userid !== app.user.get('userid') && this.getHighlight(message);
-			var parsedMessage = Tools.parseChatMessage(message, name, ChatRoom.getTimestamp('chat', msgTime), isHighlighted);
+			var parsedMessage = MainMenuRoom.parseChatMessage(message, name, ChatRoom.getTimestamp('chat', msgTime), isHighlighted, this.$chat, true);
+			if (typeof parsedMessage === 'object' && 'noNotify' in parsedMessage) {
+				mayNotify = mayNotify && !parsedMessage.noNotify;
+				parsedMessage = parsedMessage.message;
+			}
 			if (!$.isArray(parsedMessage)) parsedMessage = [parsedMessage];
 			for (var i = 0; i < parsedMessage.length; i++) {
 				if (!parsedMessage[i]) continue;
@@ -1516,8 +1644,8 @@
 			}
 
 			if (mayNotify && isHighlighted) {
-				if (!Tools.prefs('mute') && Tools.prefs('notifvolume')) {
-					soundManager.getSoundById('notif').setVolume(Tools.prefs('notifvolume')).play();
+				if (!Dex.prefs('mute') && Dex.prefs('notifvolume')) {
+					soundManager.getSoundById('notif').setVolume(Dex.prefs('notifvolume')).play();
 				}
 				var $lastMessage = this.$chat.children().last();
 				var notifyTitle = "Mentioned by " + name + (this.id === 'lobby' ? '' : " in " + this.title);
@@ -1545,7 +1673,7 @@
 		}
 	}, {
 		getTimestamp: function (section, msgTime) {
-			var pref = Tools.prefs('timestamps') || {};
+			var pref = Dex.prefs('timestamps') || {};
 			var sectionPref = ((section === 'pms') ? pref.pms : pref.lobby) || 'off';
 			if ((sectionPref === 'off') || (sectionPref === undefined)) return '';
 
@@ -1585,7 +1713,7 @@
 					return self.comparator(a, b);
 				});
 			}
-			for (var i = 0, len = users.length; i < users.length; i++) {
+			for (var i = 0; i < users.length; i++) {
 				var userid = users[i];
 				buf += this.constructItem(userid);
 			}
@@ -1645,21 +1773,23 @@
 			$('#' + this.room.id + '-userlist-user-' + userid).remove();
 		},
 		constructItem: function (userid) {
-			var name = this.room.users[userid];
+			var user = this.room.users[userid];
 			var text = '';
 			// Sanitising the `userid` here is probably unnecessary, because
 			// IDs can't contain anything dangerous.
-			text += '<li' + (this.room.userForm === userid ? ' class="cur"' : '') + ' id="' + this.room.id + '-userlist-user-' + Tools.escapeHTML(userid) + '">';
-			text += '<button class="userbutton username" data-name="' + Tools.escapeHTML(name) + '">';
-			var group = name.charAt(0);
+			text += '<li' + (this.room.userForm === userid ? ' class="cur"' : '') + ' id="' + this.room.id + '-userlist-user-' + BattleLog.escapeHTML(userid) + '">';
+			text += '<button class="userbutton username" data-roomgroup="' + BattleLog.escapeHTML(user.group) + '" data-name="' + BattleLog.escapeHTML(user.name) + '"';
+			text += (user.away ? ' data-away=true' : '') + (user.status ? ' data-status="' + BattleLog.escapeHTML(user.status) + '"' : '') + '>';
+			var group = user.group;
 			var details = Config.groups[group] || {type: 'user'};
-			text += '<em class="group' + (details.group === 2 ? ' staffgroup' : '') + '">' + Tools.escapeHTML(group) + '</em>';
+			var color = user.away ? 'color:#888;' : BattleLog.hashColor(userid);
+			text += '<em class="group' + (details.group === 2 ? ' staffgroup' : '') + '">' + BattleLog.escapeHTML(group) + '</em>';
 			if (details.type === 'leadership') {
-				text += '<strong><em style="' + hashColor(userid) + '">' + Tools.escapeHTML(name.substr(1)) + '</em></strong>';
+				text += '<strong><em style="' + color + '">' + BattleLog.escapeHTML(user.name) + '</em></strong>';
 			} else if (details.type === 'staff') {
-				text += '<strong style="' + hashColor(userid) + '">' + Tools.escapeHTML(name.substr(1)) + '</strong>';
+				text += '<strong style="' + color + '">' + BattleLog.escapeHTML(user.name) + '</strong>';
 			} else {
-				text += '<span style="' + hashColor(userid) + '">' + Tools.escapeHTML(name.substr(1)) + '</span>';
+				text += '<span style="' + color + '">' + BattleLog.escapeHTML(user.name) + '</span>';
 			}
 			text += '</button>';
 			text += '</li>';
@@ -1682,16 +1812,23 @@
 		},
 		comparator: function (a, b) {
 			if (a === b) return 0;
+
+			var aUser = this.room.users[a];
+			var bUser = this.room.users[b];
+
 			var aRank = (
-				Config.groups[(this.room.users[a] ? this.room.users[a].charAt(0) : Config.defaultGroup || ' ')] ||
-				{order: (Config.defaultOrder || 10005.5)}
+				Config.groups[aUser ? aUser.group : Config.defaultGroup || ' '] ||
+				{order: (Config.defaultOrder || 10006.5)}
 			).order;
 			var bRank = (
-				Config.groups[(this.room.users[b] ? this.room.users[b].charAt(0) : Config.defaultGroup || ' ')] ||
-				{order: (Config.defaultOrder || 10005.5)}
+				Config.groups[bUser ? bUser.group : Config.defaultGroup || ' '] ||
+				{order: (Config.defaultOrder || 10006.5)}
 			).order;
 
+			if (a === 'zarel' && aRank === 10003) aRank = 10000.5;
+			if (b === 'zarel' && bRank === 10003) bRank = 10000.5;
 			if (aRank !== bRank) return aRank - bRank;
+			if (aUser.away !== bUser.away) return aUser.away - bUser.away;
 			return (a > b ? 1 : -1);
 		},
 		getNoNamedUsersOnline: function () {

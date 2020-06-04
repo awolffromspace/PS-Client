@@ -36,7 +36,7 @@ class NTBBSession {
 		$curuser = $this->getGuest();
 
 		// see if we're logged in
-		$scookie = @$_COOKIE['sid'];
+		$scookie = $_POST['sid'] ?? $_COOKIE['sid'] ?? null;
 		if (!$scookie) {
 			// nope, not logged in
 			return;
@@ -72,8 +72,6 @@ class NTBBSession {
 		}
 		if (intval($sess['timeout'])<$ctime) {
 			// session expired
-			// delete all sessions that will expire within 30 minutes
-			$ctime += 60 * 30;
 			$psdb->query("DELETE FROM `{$psdb->prefix}sessions` WHERE `timeout` < ?", [$ctime]);
 			$this->killCookie();
 			return;
@@ -126,12 +124,13 @@ class NTBBSession {
 			$username = 'Guest';
 			$userid = 'guest';
 		}
-		return array(
+		return [
 			'username' => $username,
 			'userid' => $userid,
 			'group' => 0,
-			'loggedin' => false
-		);
+			'loggedin' => false,
+			'ip' => $this->getIp(),
+		];
 	}
 
 	function qsid() { return $this->scookie ? '?sid='.$this->scookie : ''; }
@@ -209,7 +208,7 @@ class NTBBSession {
 
 		if (substr(@$user['email'], -1) === '@') {
 			// Forgive me, gods, for I have hardcoded way more than I really should have
-			$valResult = shell_exec("cd /var/www/html/play.pokemonshowdown.com && node lib/validate-token.js \"$pass\"");
+			$valResult = shell_exec("cd /var/www/html/play.pokemonshowdown.com && node lib/validate-token.js " . escapeshellarg($pass));
 			$payload = json_decode($valResult, true);
 			if (!$payload) return false;
 			if (strpos($payload['aud'], $psconfig['gapi_clientid']) === false) return false;
@@ -273,8 +272,8 @@ class NTBBSession {
 			return $curuser;
 		}
 		if (!$timeout) {
-			// expire in a week and 30 minutes
-			$timeout = (14*24*60+30)*60;
+			// expire in two weeks
+			$timeout = 2*7*24*60*60;
 		}
 		$timeout += $ctime;
 
@@ -297,7 +296,9 @@ class NTBBSession {
 		unset($curuser['nonce']);
 		unset($curuser['passwordhash']);
 
-		setcookie('sid', $this->scookie, time() + (363)*24*60*60, '/', $this->cookiedomain, false, true);
+		// setcookie('sid', $this->scookie, ['expires' => time() + (363)*24*60*60, 'path' => '/', 'domain' => $this->cookiedomain, 'secure' => true, 'httponly' => true, 'samesite' => 'None']);
+		$encodedcookie = rawurlencode($this->scookie);
+		header("Set-Cookie: sid=$encodedcookie; Max-Age=31363200; Domain={$this->cookiedomain}; Path=/; Secure; SameSite=None");
 
 		return $curuser;
 	}
@@ -306,15 +307,20 @@ class NTBBSession {
 		if (!$this->sid) {
 			$this->sid = $this->mksid($this->sid);
 			$this->scookie = ',,' . $this->sid;
-			setcookie('sid', $this->scookie, time() + (363)*24*60*60, '/', $this->cookiedomain, false, true);
+			// setcookie('sid', $this->scookie, ['expires' => time() + (363)*24*60*60, 'path' => '/', 'domain' => $this->cookiedomain, 'secure' => true, 'httponly' => true, 'samesite' => 'None']);
+			$encodedcookie = rawurlencode($this->scookie);
+			header("Set-Cookie: sid=$encodedcookie; Max-Age=31363200; Domain={$this->cookiedomain}; Path=/; Secure; SameSite=None");
 		}
 	}
 	function killCookie() {
 		if ($this->sid) {
 			$this->scookie = ',,' . $this->sid;
-			setcookie('sid', $this->scookie, time() + (363)*24*60*60, '/', $this->cookiedomain, false, true);
+			// setcookie('sid', $this->scookie, ['expires' => time() + (363)*24*60*60, 'path' => '/', 'domain' => $this->cookiedomain, 'secure' => true, 'httponly' => true, 'samesite' => 'None']);
+			$encodedcookie = rawurlencode($this->scookie);
+			header("Set-Cookie: sid=$encodedcookie; Max-Age=31363200; Domain={$this->cookiedomain}; Path=/; Secure; SameSite=None");
 		} else {
-			setcookie('sid', '', time()-60*60*24*2, '/', $this->cookiedomain, false, true);
+			// setcookie('sid', '', ['expires' => time() - 60*60*24*2, 'path' => '/', 'domain' => $this->cookiedomain, 'secure' => true, 'httponly' => true, 'samesite' => 'None']);
+			header("Set-Cookie: sid=; Max-Age=0; Domain={$this->cookiedomain}; Path=/; Secure; SameSite=None");
 		}
 	}
 
@@ -461,6 +467,7 @@ class NTBBSession {
 		}
 		$ip = $this->getIp();
 		$forceUsertype = false;
+		if (in_array($ip, $psconfig['autolock_ip']) || in_array($user['ip'], $psconfig['autolock_ip'])) $forceUsertype = '5';
 
 		if (($user['userid'] === $userid) && !empty($user['loggedin'])) {
 			// already logged in
@@ -476,7 +483,7 @@ class NTBBSession {
 				} else if (@$user['banstate'] >= 100) {
 					return ';;Your username is no longer available.';
 				} else if (@$user['banstate'] >= 40) {
-					if ($serverhostname === 'sim2.psim.us') {
+					if ($serverhostname === 'sim3.psim.us') {
 						$usertype = '40';
 					} else {
 						$usertype = '2';
@@ -704,4 +711,3 @@ class NTBBSession {
 }
 
 $users = new NTBBSession();
-
