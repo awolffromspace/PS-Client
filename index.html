@@ -24,15 +24,16 @@ Also visit us in the Dev chatroom:
 https://psim.us/dev
 
 -->
-<meta charset="utf-8" />
+<meta charset="UTF-8" />
 <meta id="viewport" name="viewport" content="width=device-width" />
 <title>Showdown!</title>
 <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
 <link rel="shortcut icon" href="favicon.ico" id="dynamic-favicon" />
 <link rel="icon" sizes="128x128" href="favicon-128.png" />
-<link rel="stylesheet" href="style/client.css?" />
-<link rel="stylesheet" href="style/sim-types.css?" />
 <link rel="stylesheet" href="style/battle.css?" />
+<link rel="stylesheet" href="style/client.css?" />
+<link rel="stylesheet" href="//play.pokemonshowdown.com/sprites/digimon/digimon.css?" />
+<link rel="stylesheet" href="style/sim-types.css?" />
 <link rel="stylesheet" href="style/utilichart.css?" />
 <link rel="stylesheet" href="style/font-awesome.css?" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -103,6 +104,12 @@ ga('send', 'pageview');
 	<div class="leftmenu">
 		<div class="activitymenu">
 			<div class="pmbox">
+				<div class="pm-window news-embed" data-newsid="<!-- newsid -->">
+					<h3><button class="closebutton" tabindex="-1"><i class="fa fa-times-circle"></i></button><button class="minimizebutton" tabindex="-1"><i class="fa fa-minus-circle"></i></button>News</h3>
+					<div class="pm-log" style="max-height:none">
+						<!-- news -->
+					</div>
+				</div>
 			</div>
 		</div>
 		<div class="mainmenu">
@@ -123,7 +130,6 @@ ga('send', 'pageview');
 <script src="js/lib/jquery-2.1.4.min.js"></script>
 <script src="js/lib/jquery-cookie.js"></script>
 <script src="js/lib/autoresize.jquery.min.js?"></script>
-<script src="js/lib/jquery.json-2.3.min.js"></script>
 <script src="js/lib/soundmanager2-nodebug-jsmin.js?"></script>
 <script>
 	soundManager.setup({url: 'swf/'});
@@ -138,12 +144,12 @@ ga('send', 'pageview');
 </script>
 
 <script src="config/config.js?"></script>
-<script src="js/battledata.js?"></script>
+<script src="//play.pokemonshowdown.com/js/battledata.js?"></script>
 <script src="js/storage.js?"></script>
-<script src="data/pokedex-mini.js?"></script>
+<script src="//play.pokemonshowdown.com/data/pokedex-mini.js?"></script>
 <script src="//play.pokemonshowdown.com/data/typechart.js?"></script>
-<script src="js/battle.js?"></script>
-<script src="js/lib/sockjs-1.1.1-nwjsfix.min.js"></script>
+<script src="//play.pokemonshowdown.com/js/battle.js?"></script>
+<script src="js/lib/sockjs-1.4.0-nwjsfix.min.js"></script>
 <script src="js/lib/color-thief.min.js"></script>
 
 <script>
@@ -157,10 +163,10 @@ ga('send', 'pageview');
 <script src="js/client-ladder.js?"></script>
 <script src="js/client-chat.js?"></script>
 <script src="js/client-chat-tournament.js?"></script>
-<script src="js/client-battle-tooltips.js?"></script>
+<script src="//play.pokemonshowdown.com/js/battle-tooltips.js?"></script>
 <script src="js/client-battle.js?"></script>
 <script src="js/client-rooms.js?"></script>
-<script src="data/graphics.js?"></script>
+<script src="//play.pokemonshowdown.com/data/graphics.js?"></script>
 
 <script>
 	var app = new App();
@@ -173,6 +179,7 @@ ga('send', 'pageview');
 
 <script src="//play.pokemonshowdown.com/data/search-index.js?"></script>
 <script src="//play.pokemonshowdown.com/data/teambuilder-tables.js?"></script>
-<script src="//play.pokemonshowdown.com/js/search.js?"></script>
+<script src="//play.pokemonshowdown.com/js/battle-dex-search.js?"></script>
+<script src="js/search.js?"></script>
 
 <script src="//play.pokemonshowdown.com/data/aliases.js?" async="async"></script>
