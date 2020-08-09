@@ -447,7 +447,7 @@
 				var self = this;
 				var challenge = function (targets) {
 					target = toID(targets[0]);
-					self.challengeData = {userid: target, format: targets[1] || '', team: targets[2] || ''};
+					self.challengeData = {userid: target, format: targets.length > 1 ? targets.slice(1).join(',') : '', team: ''};
 					app.on('response:userdetails', self.challengeUserdetails, self);
 					app.send('/cmd userdetails ' + target);
 				};
@@ -912,7 +912,7 @@
 					var userid = toID(targets[0]);
 					var registered = app.user.get('registered');
 					if (registered && registered.userid === userid) {
-						buffer += '<tr><td colspan="8" style="text-align:right"><a href="//pokemonshowdown.com/users/' + userid + '">Reset W/L</a></tr></td>';
+						buffer += '<tr><td colspan="8" style="text-align:right"><a href="//' + Config.routes.users + '/' + userid + '">Reset W/L</a></tr></td>';
 					}
 					buffer += '</table></div>';
 					self.add('|raw|' + buffer);
@@ -1005,9 +1005,13 @@
 			// documentation of client commands
 			case 'help':
 				switch (toID(target)) {
+				case 'chal':
+				case 'chall':
 				case 'challenge':
 					this.add('/challenge - Open a prompt to challenge a user to a battle.');
 					this.add('/challenge [user] - Challenge the user [user] to a battle.');
+					this.add('/challenge [user], [format] - Challenge the user [user] to a battle in the specified [format].');
+					this.add('/challenge [user], [format] @@@ [Added Rule], [!Removed Rule], [-Banned thing], [*Restricted thing], [+Unbanned/unrestricted thing] - Challenge the user [user] to a battle in the specified [format] with the custom rules added on.');
 					return false;
 				case 'accept':
 					this.add('/accept - Accept a challenge if only one is pending.');
@@ -1243,6 +1247,9 @@
 		receive: function (data) {
 			this.add(data);
 		},
+		getUserGroup: function (userid) {
+			return (app.rooms[this.id].users[userid] || {group: ' '}).group;
+		},
 		add: function (log) {
 			if (typeof log === 'string') log = log.split('\n');
 			var autoscroll = false;
@@ -1275,9 +1282,7 @@
 			if (autoscroll) {
 				this.$chatFrame.scrollTop(this.$chat.height());
 			}
-			if (!app.focused && !Dex.prefs('mute') && Dex.prefs('notifvolume')) {
-				soundManager.getSoundById('notif').setVolume(Dex.prefs('notifvolume')).play();
-			}
+			if (!app.focused) app.playNotificationSound();
 		},
 		addRow: function (line) {
 			var name, name2, silent;
@@ -1382,9 +1387,7 @@
 
 				case 'notify':
 					if (row[3] && !this.getHighlight(row[3])) return;
-					if (!Dex.prefs('mute') && Dex.prefs('notifvolume')) {
-						soundManager.getSoundById('notif').setVolume(Dex.prefs('notifvolume')).play();
-					}
+					app.playNotificationSound();
 					this.notifyOnce(row[1], row[2], 'highlight');
 					break;
 
@@ -1392,9 +1395,7 @@
 					var notifyOnce = row[4] !== '!';
 					if (!notifyOnce) row[4] = '';
 					if (row[4] && !this.getHighlight(row[4])) return;
-					if (!this.notifications && !Dex.prefs('mute') && Dex.prefs('notifvolume')) {
-						soundManager.getSoundById('notif').setVolume(Dex.prefs('notifvolume')).play();
-					}
+					if (!this.notifications) app.playNotificationSound();
 					this.notify(row[2], row[3], row[1], notifyOnce);
 					break;
 
@@ -1427,6 +1428,7 @@
 					break;
 
 				case 'unlink':
+					// |unlink| is deprecated in favor of |hidelines|
 					// note: this message has global effects, but it's handled here
 					// so that it can be included in the scrollback buffer.
 					if (Dex.prefs('nounlink')) return;
@@ -1446,7 +1448,26 @@
 						this.$chat.children().last().append(' <button name="toggleMessages" value="' + user + '" class="subtle"><small>(' + $messages.length + ' line' + ($messages.length > 1 ? 's' : '') + ' from ' + user + ' hidden)</small></button>');
 					}
 					break;
-
+				case 'hidelines':
+					if (Dex.prefs('nounlink')) return;
+					var user = toID(row[2]);
+					var $messages = $('.chatmessage-' + user);
+					if (!$messages.length) break;
+					$messages.find('a').contents().unwrap();
+					if (row[1] !== 'unlink') {
+						$messages = this.$chat.find('.chatmessage-' + user);
+						if (!$messages.length) break;
+						var lineCount = parseInt(row[3], 10) || 0;
+						if (lineCount) $messages = $messages.slice(-lineCount);
+						$messages.hide().addClass('revealed').find('button').parent().remove();
+						var staffGroups = Object.keys(Config.groups).filter(function (group) {
+							return ['staff', 'leadership'].includes(Config.groups[group].type);
+						});
+						if (row[1] === 'hide' || staffGroups.includes(this.getUserGroup(app.user.get('userid')))) {
+							this.$chat.children().last().append(' <button name="toggleMessages" value="' + user + '" class="subtle"><small>(' + $messages.length + ' line' + ($messages.length > 1 ? 's' : '') + ' from ' + user + ' hidden)</small></button>');
+						}
+					}
+					break;
 				case 'tournament':
 				case 'tournaments':
 					if (Dex.prefs('tournaments') === 'hide') {
@@ -1548,7 +1569,14 @@
 				this.$chat.append('<div class="message"><small>Loading...</small></div>');
 				this.$joinLeave = this.$chat.children().last();
 			}
-			this.joinLeave[action].push(user.group + user.name);
+
+			var formattedUser = user.group + user.name;
+			if (action === 'join' && this.joinLeave['leave'].includes(formattedUser)) {
+				this.joinLeave['leave'].splice(this.joinLeave['leave'].indexOf(formattedUser), 1);
+			} else {
+				this.joinLeave[action].push(formattedUser);
+			}
+
 			var message = '';
 			if (this.joinLeave['join'].length) {
 				message += this.displayJoinLeaves(this.joinLeave['join'], 'joined');
@@ -1644,9 +1672,7 @@
 			}
 
 			if (mayNotify && isHighlighted) {
-				if (!Dex.prefs('mute') && Dex.prefs('notifvolume')) {
-					soundManager.getSoundById('notif').setVolume(Dex.prefs('notifvolume')).play();
-				}
+				app.playNotificationSound();
 				var $lastMessage = this.$chat.children().last();
 				var notifyTitle = "Mentioned by " + name + (this.id === 'lobby' ? '' : " in " + this.title);
 				var notifyText = $lastMessage.html().indexOf('<span class="spoiler">') >= 0 ? '(spoiler)' : $lastMessage.children().last().text();
