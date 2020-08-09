@@ -1,18 +1,12 @@
+function toId() {
+	// toId has been renamed toID
+	alert("You have an old extension/script for Pokemon Showdown which is incompatible with this client. It needs to be removed or updated.");
+}
+
 function postProxy(a, b, callback) {
 	var datastring = ((a.split('?').length - 1 > 0) ? "&" : "?") + "post=";
 	for (var i in b) datastring += escape(i) + "|";
 	$.post(a + datastring, b, callback);
-}
-function getProxy(ab, callback) {
-	$.get(ab, callback);
-}
-
-var $link = $('<link rel="stylesheet" href="/js/style.css" />');
-$('head').append($link);
-
-function toId() {
-	// toId has been renamed toID
-	alert("You have an old extension/script for Pokemon Showdown which is incompatible with this client. It needs to be removed or updated.");
 }
 
 (function ($) {
