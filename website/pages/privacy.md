@@ -22,11 +22,11 @@ Pokémon Showdown uses Google Analytics and Google AdSense, which collect referr
 
 Google has [a page that lets you opt out of AdSense-related tracking](https://www.google.com/settings/ads/onweb/).
 
-## Children
-
-Children under the age of 13 should not give any personal information on Pokémon Showdown.
-
 ## Logging
 
 We reserve the right (but not the obligation) to keep text logs of all chatting in chat rooms, battles, and private messages, including secret rooms. We will keep private message logs as private as possible, and will only look at them if a participant gives us permission (such as through a "Report" button), or to help enforce laws.
 
+## Other services
+
+We use several Google APIs to help improve chat experience. 
+[Review Google's privacy policy](https://policies.google.com/privacy).

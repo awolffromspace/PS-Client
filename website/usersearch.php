@@ -58,7 +58,12 @@ if (!$ip && !$entry) {
 	if ($users->csrfCheck()) {
 		$csrfOk = true;
 	}
-	$userlist = $psdb->query("SELECT `username`, `userid`, `banstate` FROM `ntbb_users` WHERE `ip` = ?", [$ip]);
+	if (substr($ip, -1) === "*") { // ip range
+		$ip = substr($ip, 0, -1) . '%';
+		$userlist = $psdb->query("SELECT `username`, `userid`, `banstate` FROM `ntbb_users` WHERE `ip` LIKE ?", [$ip]);
+	} else {
+		$userlist = $psdb->query("SELECT `username`, `userid`, `banstate` FROM `ntbb_users` WHERE `ip` = ?", [$ip]);
+	}
 	if ($csrfOk && isset($_POST['standing'])) {
 		$newStanding = intval($_POST['standing']);
 		$psdb->query("UPDATE ntbb_users SET banstate = ? WHERE ip = ? AND banstate != 100", [$newStanding, $ip]);
@@ -171,7 +176,13 @@ if (!$ip && !$entry) {
 	$userlist = $psdb->query("SELECT `ntbb_users`.`username`, `ntbb_users`.`userid`, `ntbb_users`.`banstate` FROM `ntbb_users` INNER JOIN `ntbb_usermodlog` ON `ntbb_users`.`userid` = `ntbb_usermodlog`.`userid` WHERE `entry` LIKE ?", [$entry]);
 	if ($csrfOk && isset($_POST['standing'])) {
 		$newStanding = intval($_POST['standing']);
-		$psdb->query("UPDATE ntbb_users SET banstate = ? WHERE ip = ? AND banstate != 100", [$newStanding, $ip]);
+
+		$psdb->query(
+			"UPDATE {$psdb->prefix}users, {$psdb->prefix}usermodlog " +
+			"INNER JOIN {$psdb->prefix}usermodlog ON {$psdb->prefix}usermodlog.userid = {$psdb->prefix}users.userid " +
+			"SET {$psdb->prefix}users.banstate = ? WHERE {$psdb->prefix}usermodlog.entry LIKE ? AND banstate != 100",
+			[$newStanding, $entry]
+		);
 
 		foreach ($userlist as $row) {
 			$modlogentry = "Standing changed to $newStanding ({$STANDINGS[$newStanding]}): {$_POST['allreason']}";

@@ -84,10 +84,14 @@ $formats = array(
 	'gen1ou' => '[Gen 1] OU',
 );
 
-if (@$_REQUEST['user']) {
-	$userid = $users->userid(@$_REQUEST['user']);
+if (isset($_REQUEST['user']) && strlen($_REQUEST['user'])) {
+	$userid = $users->userid($_REQUEST['user']);
+	// 0 is falsy
+	// I'm hardcoding here to fix a crash, but the rest of the system
+	// should continue to reject 0 as a valid userid
+	if ($_REQUEST['user'] === '0') $userid = '0';
 
-	if (!$userid) {
+	if (!strlen($userid)) {
 		header('HTTP/1.1 404 Not Found');
 		die("Invalid userid");
 	}
@@ -113,12 +117,13 @@ if (@$_REQUEST['user']) {
 }
 
 if ($authLevel >= 3) {
-	file_put_contents(__DIR__ . '/../config/altaccesslog.txt', "{$curuser['username']} - $userid\n", FILE_APPEND);
+	//file_put_contents(__DIR__ . '/../config/altaccesslog.txt', "{$curuser['username']} - $userid\n", FILE_APPEND);
 }
 
 if (isset($_REQUEST['json'])) {
 	header('Content-Type: application/json');
 	header('Access-Control-Allow-Origin: *');
+	if (!$user) die('null');
 	$ladder = new NTBBLadder('');
 	$ladder->getAllRatings($user);
 	$ratings = [];
@@ -258,6 +263,24 @@ if (!$user) {
 			<p>Ladder record swapped</p>
 		</div>
 <?php
+		} else if ($csrfOk && isset($_POST['googlelogin'])) {
+			$email = $_POST['googlelogin'];
+			$remove = ($email === 'remove');
+			$psdb->query(
+				"UPDATE {$psdb->prefix}users SET email = ? WHERE userid = ?",
+				[$remove ? '' : $email . '@', $user['userid']]
+			);
+
+			$modlogentry = $remove ? "Login method set to password" : "Login method set to Google " . $email;
+			$psdb->query(
+				"INSERT INTO `{$psdb->prefix}usermodlog` (`userid`,`actorid`,`date`,`ip`,`entry`) VALUES (?, ?, ?, ?, ?)",
+				[$user['userid'], $curuser['userid'], time(), $users->getIp(), $modlogentry]
+			);
+?>
+		<div style="border: 1px solid #DDAA88; padding: 0 1em; margin-bottom: 1em">
+			<p>Login method updated</p>
+		</div>
+<?php
 		} else if ($csrfOk && $authLevel >= 5 && @$_POST['passreset']) {
 			$token = $users->createPasswordResetToken($user['userid']);
 ?>
@@ -315,11 +338,19 @@ if (!$user) {
 		}
 ?></select><?php if ($authLevel >= 4) { ?> <input name="reason" type="text" class="textbox" size="46" placeholder="Reason" style="display:none" /> <button type="submit"><strong>Change</strong></button><?php } ?>
 			</p></form>
+<?php
+		if ($authLevel >= 4) {
+?>
 			<form action="" method="post" data-target="replace"><p>
 				<?php $users->csrfData(); ?>
 				<strong>Swap ladder rating:</strong><br /> <input type="text" name="moveladder" placeholder="New username" value="" /> <button type="submit">Swap rating</button>
 			</p></form>
+			<form action="" method="post" data-target="replace"><p>
+				<?php $users->csrfData(); ?>
+				<strong>Login with Google account:</strong><br /> <input type="text" name="googlelogin" placeholder="Email" value="<?= substr($user['email'] ?? '', -1) === '@' ? substr($user['email'], 0, -1) : '' ?>" /> <button type="submit">Update login method</button> (<code>remove</code> to remove)
+			</p></form>
 <?php
+		}
 		if ($authLevel >= 5) {
 ?>
 			<form action="" method="post" data-target="replace"><p>

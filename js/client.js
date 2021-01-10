@@ -181,7 +181,7 @@ function postProxy(a, b, callback) {
 				}
 			});
 			this.on('change:settings', function () {
-				Dex.prefs('serversettings', self.get('settings'));
+				Storage.prefs('serversettings', self.get('settings'));
 			});
 
 			var replaceList = {'A': 'ＡⱯȺ', 'B': 'ＢƂƁɃ', 'C': 'ＣꜾȻ', 'D': 'ＤĐƋƊƉꝹ', 'E': 'ＥƐƎ', 'F': 'ＦƑꝻ', 'G': 'ＧꞠꝽꝾ', 'H': 'ＨĦⱧⱵꞍ', 'I': 'ＩƗ', 'J': 'ＪɈ', 'K': 'ＫꞢ', 'L': 'ＬꝆꞀ', 'M': 'ＭⱮƜ', 'N': 'ＮȠƝꞐꞤ', 'O': 'ＯǪǬØǾƆƟꝊꝌ', 'P': 'ＰƤⱣꝐꝒꝔ', 'Q': 'ＱꝖꝘɊ', 'R': 'ＲɌⱤꝚꞦꞂ', 'S': 'ＳẞꞨꞄ', 'T': 'ＴŦƬƮȾꞆ', 'U': 'ＵɄ', 'V': 'ＶƲꝞɅ', 'W': 'ＷⱲ', 'X': 'Ｘ', 'Y': 'ＹɎỾ', 'Z': 'ＺƵȤⱿⱫꝢ', 'a': 'ａąⱥɐ', 'b': 'ｂƀƃɓ', 'c': 'ｃȼꜿↄ', 'd': 'ｄđƌɖɗꝺ', 'e': 'ｅɇɛǝ', 'f': 'ｆḟƒꝼ', 'g': 'ｇɠꞡᵹꝿ', 'h': 'ｈħⱨⱶɥ', 'i': 'ｉɨı', 'j': 'ｊɉ', 'k': 'ｋƙⱪꝁꝃꝅꞣ', 'l': 'ｌſłƚɫⱡꝉꞁꝇ', 'm': 'ｍɱɯ', 'n': 'ｎƞɲŉꞑꞥ', 'o': 'ｏǫǭøǿɔꝋꝍɵ', 'p': 'ｐƥᵽꝑꝓꝕ', 'q': 'ｑɋꝗꝙ', 'r': 'ｒɍɽꝛꞧꞃ', 's': 'ｓꞩꞅẛ', 't': 'ｔŧƭʈⱦꞇ', 'u': 'ｕưừứữửựųṷṵʉ', 'v': 'ｖʋꝟʌ', 'w': 'ｗⱳ', 'x': 'ｘ', 'y': 'ｙɏỿ', 'z': 'ｚƶȥɀⱬꝣ', 'AA': 'Ꜳ', 'AE': 'ÆǼǢ', 'AO': 'Ꜵ', 'AU': 'Ꜷ', 'AV': 'ꜸꜺ', 'AY': 'Ꜽ', 'DZ': 'ǱǄ', 'Dz': 'ǲǅ', 'LJ': 'Ǉ', 'Lj': 'ǈ', 'NJ': 'Ǌ', 'Nj': 'ǋ', 'OI': 'Ƣ', 'OO': 'Ꝏ', 'OU': 'Ȣ', 'TZ': 'Ꜩ', 'VY': 'Ꝡ', 'aa': 'ꜳ', 'ae': 'æǽǣ', 'ao': 'ꜵ', 'au': 'ꜷ', 'av': 'ꜹꜻ', 'ay': 'ꜽ', 'dz': 'ǳǆ', 'hv': 'ƕ', 'lj': 'ǉ', 'nj': 'ǌ', 'oi': 'ƣ', 'ou': 'ȣ', 'oo': 'ꝏ', 'ss': 'ß', 'tz': 'ꜩ', 'vy': 'ꝡ'};
@@ -200,10 +200,13 @@ function postProxy(a, b, callback) {
 			if (settings[setting] !== value) {
 				switch (setting) {
 				case 'blockPMs':
-					app.send(value ? '/blockpms' : '/unblockpms');
+					app.send(value ? '/blockpms ' + value : '/unblockpms');
 					break;
 				case 'blockChallenges':
 					app.send(value ? '/blockchallenges' : '/unblockchallenges');
+					break;
+				case 'language':
+					app.send('/language ' + value);
 					break;
 				default:
 					throw new TypeError('Unknown setting:' + setting);
@@ -428,8 +431,8 @@ function postProxy(a, b, callback) {
 					}
 					// Support legacy tournament setting and migrate to new pref
 					if (Dex.prefs('notournaments') !== undefined) {
-						Dex.prefs('tournaments', Dex.prefs('notournaments') ? 'hide' : 'notify');
-						Dex.prefs('notournaments', null, true);
+						Storage.prefs('tournaments', Dex.prefs('notournaments') ? 'hide' : 'notify');
+						Storage.prefs('notournaments', null, true);
 					}
 					var autojoin = (Dex.prefs('autojoin') || '');
 					var autojoinIds = [];
@@ -1888,7 +1891,7 @@ function postProxy(a, b, callback) {
 					curAutojoin = autojoins.join(',');
 				}
 			}
-			Dex.prefs('autojoin', curAutojoin);
+			Storage.prefs('autojoin', curAutojoin);
 		},
 
 		playNotificationSound: function () {
@@ -2213,7 +2216,7 @@ function postProxy(a, b, callback) {
 
 			if (this.lastMessageDate) {
 				// Mark chat messages as read to avoid double-notifying on reload
-				var lastMessageDates = Dex.prefs('logtimes') || (Dex.prefs('logtimes', {}), Dex.prefs('logtimes'));
+				var lastMessageDates = Dex.prefs('logtimes') || (Storage.prefs('logtimes', {}), Dex.prefs('logtimes'));
 				if (!lastMessageDates[Config.server.id]) lastMessageDates[Config.server.id] = {};
 				lastMessageDates[Config.server.id][this.id] = this.lastMessageDate;
 				Storage.prefs.save();
@@ -2245,7 +2248,7 @@ function postProxy(a, b, callback) {
 
 			if (this.lastMessageDate) {
 				// Mark chat messages as read to avoid double-notifying on reload
-				var lastMessageDates = Dex.prefs('logtimes') || (Dex.prefs('logtimes', {}), Dex.prefs('logtimes'));
+				var lastMessageDates = Dex.prefs('logtimes') || (Storage.prefs('logtimes', {}), Dex.prefs('logtimes'));
 				if (!lastMessageDates[Config.server.id]) lastMessageDates[Config.server.id] = {};
 				lastMessageDates[Config.server.id][this.id] = this.lastMessageDate;
 				Storage.prefs.save();
@@ -2437,13 +2440,13 @@ function postProxy(a, b, callback) {
 			type: 'leadership',
 			order: 10001
 		},
-		'&': {
-			name: "Administrator (&amp;)",
+		'#': {
+			name: "Room Owner (#)",
 			type: 'leadership',
 			order: 10002
 		},
-		'#': {
-			name: "Room Owner (#)",
+		'&': {
+			name: "Administrator (&amp;)",
 			type: 'leadership',
 			order: 10003
 		},
@@ -2597,10 +2600,14 @@ function postProxy(a, b, callback) {
 
 			buf += '<p class="buttonbar">';
 			if (userid === app.user.get('userid') || !app.user.get('named')) {
-				buf += '<button disabled>Challenge</button> <button disabled>Chat</button>';
+				buf += '<button disabled>Challenge</button>';
 				if (userid === app.user.get('userid')) {
+					buf += ' <button name="pm">Chat self</button>';
 					buf += '</p><hr /><p class="buttonbar" style="text-align: right">';
 					buf += '<button name="login"><i class="fa fa-pencil"></i> Change name</button> <button name="logout"><i class="fa fa-power-off"></i> Log out</button>';
+				} else {
+					// Guests can't PM themselves
+					buf += ' <button disabled>Chat self</button>';
 				}
 			} else {
 				buf += '<button name="challenge">Challenge</button> <button name="pm">Chat</button> <button name="userOptions">\u2026</button>';
@@ -2747,8 +2754,8 @@ function postProxy(a, b, callback) {
 		initialize: function (data) {
 			var buf = '';
 			buf = '<p>Your replay has been uploaded! It\'s available at:</p>';
-			buf += '<p><a href="https://' + Config.routes.replays + '/' + data.id + '" target="_blank" class="no-panel-intercept">https://' + Config.routes.replays + '/' + data.id + '</a></p>';
-			buf += '<p><button class="autofocus" name="close">Close</button></p>';
+			buf += '<p> <a class="replay-link" href="https://' + Config.routes.replays + '/' + data.id + '" target="_blank" class="no-panel-intercept">https://' + Config.routes.replays + '/' + data.id + '</a> <button name="copyReplayLink">Copy</button></p>';
+			buf += '<p><button class="autofocus" name="close">Close</button><p>';
 			this.$el.html(buf).css('max-width', 620);
 		},
 		clickClose: function () {
@@ -2756,6 +2763,18 @@ function postProxy(a, b, callback) {
 		},
 		submit: function (i) {
 			this.close();
+		},
+		copyReplayLink: function () {
+			var copyText = this.$(".replay-link")[0];
+			var dummyReplayLink = document.createElement("input");
+			// This is a hack. You can only "select" an input field. The trick is to create a short lived input element and destroy it after a copy.
+			dummyReplayLink.id = "dummyReplayLink";
+			dummyReplayLink.value = copyText.href;
+			dummyReplayLink.style.position = 'absolute';
+			copyText.appendChild(dummyReplayLink);
+			dummyReplayLink.select();
+			document.execCommand("copy");
+			copyText.removeChild(dummyReplayLink);
 		}
 	});
 
@@ -2785,7 +2804,7 @@ function postProxy(a, b, callback) {
 			if (!warning) {
 				buf += '<p><b>Usernames</b></p>' +
 					'<p>Your username can be chosen and changed at any time. Keep in mind:</p>' +
-					'<p><b>1.</b> Usernames may not impersonate a recognized user (a user with %, @, or &amp; next to their name) or a famous person/organization that uses PS or is associated with Pokémon.</p>' +
+					'<p><b>1.</b> Usernames may not impersonate a recognized user (a user with %, @, #, or &amp; next to their name) or a famous person/organization that uses PS or is associated with Pokémon.</p>' +
 					'<p><b>2.</b> Usernames may not be derogatory or insulting in nature, to an individual or group (insulting yourself is okay as long as it\'s not too serious).</p>' +
 					'<p><b>3.</b> Usernames may not directly reference sexual activity, or be excessively disgusting.</p>' +
 					'<p>This policy is less restrictive than that of many places, so you might see some "borderline" nicknames that might not be accepted elsewhere. You might consider it unfair that they are allowed to keep their nickname. The fact remains that their nickname follows the above rules, and if you were asked to choose a new name, yours does not.</p>';
